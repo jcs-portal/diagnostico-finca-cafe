@@ -1,0 +1,18 @@
+{
+  "name": "Diagnóstico de Finca Cafetera",
+  "short_name": "Diagnóstico Finca",
+  "description": "Diagnóstico de finca cafetera para productores de San Adolfo, Huila · Ubuntu Café",
+  "start_url": "/diagnostico-finca-cafe/",
+  "display": "standalone",
+  "background_color": "#2C1810",
+  "theme_color": "#2C1810",
+  "lang": "es",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/jcs-portal/quiz-caficultor/main/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

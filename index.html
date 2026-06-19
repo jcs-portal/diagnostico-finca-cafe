@@ -2,367 +2,511 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#2C1810" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Diagnóstico Finca" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="description" content="Diagnóstico de finca cafetera para productores de San Adolfo, Huila · Ubuntu Café" />
+  <link rel="manifest" href="manifest.json" />
   <title>Diagnóstico de Finca · Ubuntu Café</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #F5EDD8; font-family: 'Segoe UI', system-ui, sans-serif; }
-    input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; overscroll-behavior: none; }
+    body { background: #F5EDD8; font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+    /* Inputs grandes para dedos */
+    input, select { font-size: 16px !important; /* evita zoom automático en iOS */ }
+    input[type=number] { -moz-appearance: textfield; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+    /* Botones táctiles con área mínima de 44px */
+    button { min-height: 44px; touch-action: manipulation; -webkit-appearance: none; }
+
+    /* Scroll suave en iOS */
+    .scroll-area { -webkit-overflow-scrolling: touch; overflow-y: auto; }
+
+    /* Selección de opciones en sliders táctiles */
+    .opcion-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 52px; min-height: 52px; border-radius: 10px;
+      font-size: 22px; cursor: pointer; border: 2.5px solid transparent;
+      transition: transform 0.1s, border-color 0.15s;
+      touch-action: manipulation; user-select: none;
+    }
+    .opcion-btn:active { transform: scale(0.93); }
+
+    /* Animación de entrada de secciones */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .seccion { animation: fadeIn 0.25s ease; }
+
+    /* Safe area para iPhones con notch */
+    .header-safe { padding-top: max(18px, env(safe-area-inset-top)); }
+    .nav-safe { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   </style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="text/babel">
-    const C = {
-      earth: "#2C1810", roast: "#5C3A21", bark: "#8B5E3C", clay: "#C4956A",
-      cream: "#F5EDD8", fog: "#EDE4D0", leaf: "#3A5C2A", sprout: "#6B8F47",
-      mist: "#C8D9B5", alert: "#C0392B", warn: "#D4851A", ok: "#3A5C2A",
-      white: "#FDFAF4",
-    };
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useCallback } = React;
 
-    const REF = {
-      altitud:          { ideal: [1350, 1800], unidad: "msnm",  fuente: "Cenicafé" },
-      puntajeSCA:       { ideal: [80, 100],    unidad: "pts",   fuente: "SCA" },
-      pctRojos:         { ideal: [95, 100],    unidad: "%",     fuente: "Cenicafé" },
-      fermentacion:     { ideal: [12, 24],     unidad: "h",     fuente: "Cenicafé" },
-      humedadPergamino: { ideal: [10, 12],     unidad: "%",     fuente: "Cenicafé/FNC" },
-      relacionCereza:   { ideal: [4.5, 5.5],   unidad: ":1",    fuente: "Cenicafé" },
-      mermaTrilla:      { ideal: [17, 20],     unidad: "%",     fuente: "FNC" },
-      pctPasilla:       { ideal: [0, 8],       unidad: "%",     fuente: "Cenicafé" },
-      hrAlmacen:        { ideal: [60, 70],     unidad: "%HR",   fuente: "Cenicafé" },
-    };
+const C = {
+  earth: "#2C1810", roast: "#5C3A21", bark: "#8B5E3C", clay: "#C4956A",
+  cream: "#F5EDD8", fog: "#EDE4D0", leaf: "#3A5C2A",
+  mist: "#C8D9B5", alert: "#C0392B", warn: "#D4851A", ok: "#3A5C2A",
+  white: "#FDFAF4",
+};
 
-    function semaforo(campo, valor) {
-      if (valor === "" || valor === null || valor === undefined) return null;
-      const v = parseFloat(valor);
-      const r = REF[campo];
-      if (!r) return null;
-      const [lo, hi] = r.ideal;
-      if (v >= lo && v <= hi) return "ok";
-      const margen = (hi - lo) * 0.25;
-      if (v >= lo - margen && v <= hi + margen) return "warn";
-      return "alert";
-    }
+const REF = {
+  altitud:          { ideal: [1350, 1800], unidad: "msnm",  fuente: "Cenicafé" },
+  puntajeSCA:       { ideal: [80, 100],    unidad: "pts",   fuente: "SCA" },
+  pctRojos:         { ideal: [95, 100],    unidad: "%",     fuente: "Cenicafé" },
+  fermentacion:     { ideal: [12, 24],     unidad: "h",     fuente: "Cenicafé" },
+  humedadPergamino: { ideal: [10, 12],     unidad: "%",     fuente: "Cenicafé/FNC" },
+  relacionCereza:   { ideal: [4.5, 5.5],   unidad: ":1",    fuente: "Cenicafé" },
+  mermaTrilla:      { ideal: [17, 20],     unidad: "%",     fuente: "FNC" },
+  pctPasilla:       { ideal: [0, 8],       unidad: "%",     fuente: "Cenicafé" },
+  hrAlmacen:        { ideal: [60, 70],     unidad: "%HR",   fuente: "Cenicafé" },
+};
 
-    function colorSem(s) {
-      if (s === "ok") return C.ok;
-      if (s === "warn") return C.warn;
-      if (s === "alert") return C.alert;
-      return C.bark;
-    }
+function semaforo(campo, valor) {
+  if (valor === "" || valor === null) return null;
+  const v = parseFloat(valor);
+  if (isNaN(v)) return null;
+  const r = REF[campo];
+  if (!r) return null;
+  const [lo, hi] = r.ideal;
+  if (v >= lo && v <= hi) return "ok";
+  const margen = (hi - lo) * 0.25;
+  if (v >= lo - margen && v <= hi + margen) return "warn";
+  return "alert";
+}
+const colorSem = s => s === "ok" ? C.ok : s === "warn" ? C.warn : s === "alert" ? C.alert : C.bark;
+const labelSem = s => s === "ok" ? "✓ En rango ideal" : s === "warn" ? "⚠ Cerca del límite" : s === "alert" ? "✗ Fuera del rango" : "";
+const iconSem  = s => s === "ok" ? "🟢" : s === "warn" ? "🟡" : s === "alert" ? "🔴" : "⚪";
 
-    function labelSem(s) {
-      if (s === "ok") return "✓ En rango ideal";
-      if (s === "warn") return "⚠ Cerca del límite";
-      if (s === "alert") return "✗ Fuera del rango";
-      return "";
-    }
+function generarRecomendaciones(d) {
+  const recs = [];
+  const add = (p, area, titulo, texto, impacto) => recs.push({ prioridad: p, area, titulo, texto, impacto });
 
-    function generarRecomendaciones(d) {
-      const recs = [];
-      const add = (p, area, titulo, texto, impacto) => recs.push({ prioridad: p, area, titulo, texto, impacto });
+  const s_rojos = semaforo("pctRojos", d.pctRojos);
+  if (s_rojos === "alert") add(1, "Cosecha", "Recolección selectiva urgente",
+    `Tu proporción de frutos rojos (${d.pctRojos}%) está muy por debajo del 95% ideal. Cada fruto verde o sobremaduro genera defectos en cascada: peor conversión, más pasilla y puntaje SCA más bajo.`,
+    "Alto impacto en calidad y merma");
+  else if (s_rojos === "warn") add(2, "Cosecha", "Mejorar selectividad en cosecha",
+    `Con ${d.pctRojos}% de frutos rojos estás cerca del límite. Una segunda pasada 5-7 días después suele elevar este porcentaje sin aumentar el jornal total.`,
+    "Impacto medio en calidad");
 
-      const s_rojos = semaforo("pctRojos", d.pctRojos);
-      if (s_rojos === "alert") add(1, "Cosecha", "Recolección selectiva urgente",
-        `Tu proporción de frutos rojos (${d.pctRojos}%) está muy por debajo del 95% ideal. Cada fruto verde o sobremaduro genera defectos en cascada: peor conversión cereza→pergamino, más pasilla en trilla y puntaje SCA más bajo.`,
-        "Alto impacto en calidad y merma");
-      else if (s_rojos === "warn") add(2, "Cosecha", "Mejorar selectividad en cosecha",
-        `Con ${d.pctRojos}% de frutos rojos estás cerca del límite. Una segunda pasada por el lote 5-7 días después suele elevar este porcentaje sin aumentar el jornal total.`,
-        "Impacto medio en calidad");
+  const fv = parseFloat(d.fermentacion);
+  const s_ferm = semaforo("fermentacion", d.fermentacion);
+  if (s_ferm === "alert" && fv < 12) add(1, "Beneficio", "Fermentación insuficiente",
+    `${d.fermentacion}h es poco. El mucílago no se degrada bien y el pergamino puede quedar con residuos que generan notas terrosas o astringencia en taza.`,
+    "Alto impacto en puntaje SCA");
+  else if (s_ferm === "alert" && fv > 24) add(1, "Beneficio", "Sobrefermentación — riesgo crítico",
+    `${d.fermentacion}h supera el rango seguro (12-24h). La sobrefermentación genera notas vinosas que pueden restar 4+ puntos SCA por taza afectada.`,
+    "Alto impacto en puntaje SCA");
 
-      const s_ferm = semaforo("fermentacion", d.fermentacion);
-      if (s_ferm === "alert" && parseFloat(d.fermentacion) < 12) add(1, "Beneficio", "Fermentación insuficiente",
-        `${d.fermentacion}h es poco tiempo. El mucílago no se degrada bien y el pergamino puede quedar con residuos que generan notas terrosas o astringencia en taza.`,
-        "Alto impacto en puntaje SCA");
-      else if (s_ferm === "alert" && parseFloat(d.fermentacion) > 24) add(1, "Beneficio", "Sobrefermentación — riesgo crítico",
-        `${d.fermentacion}h supera el rango seguro de 12-24h. La sobrefermentación genera notas vinosas o fermentadas que pueden restar 4+ puntos SCA por taza afectada.`,
-        "Alto impacto en puntaje SCA");
+  const hv = parseFloat(d.humedadPergamino);
+  const s_hum = semaforo("humedadPergamino", d.humedadPergamino);
+  if (s_hum === "alert" && hv > 12) add(1, "Secado", "Humedad excesiva — riesgo de hongos",
+    `Con ${d.humedadPergamino}% el café está en zona de riesgo de hongos y pérdida de peso. Extender el secado y remover más frecuentemente.`,
+    "Alto impacto en merma y calidad");
+  else if (s_hum === "alert" && hv < 10) add(2, "Secado", "Exceso de secado — pérdida evitable",
+    `Con ${d.humedadPergamino}% estás secando de más. Cada punto por debajo del óptimo es peso vendible que se pierde sin ningún beneficio.`,
+    "Impacto medio en merma");
 
-      const s_hum = semaforo("humedadPergamino", d.humedadPergamino);
-      if (s_hum === "alert" && parseFloat(d.humedadPergamino) > 12) add(1, "Secado", "Humedad excesiva — riesgo de hongos",
-        `Con ${d.humedadPergamino}% el café está en zona de riesgo de hongos y pérdida de peso en almacenamiento. Extender el secado y remover más frecuentemente.`,
-        "Alto impacto en merma y calidad");
-      else if (s_hum === "alert" && parseFloat(d.humedadPergamino) < 10) add(2, "Secado", "Exceso de secado — pérdida evitable",
-        `Con ${d.humedadPergamino}% estás secando más de lo necesario. Cada punto por debajo del óptimo es peso vendible que se pierde sin ningún beneficio de calidad.`,
-        "Impacto medio en merma");
+  const s_rel = semaforo("relacionCereza", d.relacionCereza);
+  if (s_rel === "alert" && parseFloat(d.relacionCereza) > 5.5) add(2, "Cosecha + Beneficio", "Relación de conversión alta",
+    `Necesitas ${d.relacionCereza} kg de cereza por 1 kg de pergamino (ideal 4,5-5,5:1). Indica mezcla de fruto verde, fermentación deficiente o secado irregular.`,
+    "Impacto directo en rentabilidad");
 
-      const s_rel = semaforo("relacionCereza", d.relacionCereza);
-      if (s_rel === "alert" && parseFloat(d.relacionCereza) > 5.5) add(2, "Cosecha + Beneficio", "Relación de conversión alta",
-        `Necesitas ${d.relacionCereza} kg de cereza por 1 kg de pergamino (ideal 4,5-5,5:1). Esto indica mezcla de fruto verde, fermentación deficiente o secado irregular.`,
-        "Impacto directo en rentabilidad");
+  const s_trilla = semaforo("mermaTrilla", d.mermaTrilla);
+  if (s_trilla === "alert" && parseFloat(d.mermaTrilla) > 20) add(2, "Trilla", "Merma en trilla superior al estándar",
+    `Con ${d.mermaTrilla}% de merma (estándar FNC: 19%) probablemente hay grano partido por trilladora descalibrada o defectos físicos previos.`,
+    "Impacto medio en volumen vendible");
 
-      const s_trilla = semaforo("mermaTrilla", d.mermaTrilla);
-      if (s_trilla === "alert" && parseFloat(d.mermaTrilla) > 20) add(2, "Trilla", "Merma en trilla superior al estándar",
-        `Con ${d.mermaTrilla}% de merma (FNC estándar: 19%) probablemente hay grano partido por calibración de la trilladora o defectos físicos previos.`,
-        "Impacto medio en volumen vendible");
+  const s_pas = semaforo("pctPasilla", d.pctPasilla);
+  if (s_pas === "alert") add(2, "Trilla / Beneficio", "Porcentaje de pasilla alto",
+    `${d.pctPasilla}% de pasilla supera el rango esperado (0-8%). Se forma por defectos de cosecha (frutos verdes, brocados) o grano partido en trilla.`,
+    "Impacto en ingresos netos");
 
-      const s_pas = semaforo("pctPasilla", d.pctPasilla);
-      if (s_pas === "alert") add(2, "Trilla / Beneficio", "Porcentaje de pasilla alto",
-        `${d.pctPasilla}% de pasilla supera el rango esperado (0-8%). Se forma por defectos de cosecha (frutos verdes, brocados) o grano partido en trilla.`,
-        "Impacto en ingresos netos");
+  const s_hr = semaforo("hrAlmacen", d.hrAlmacen);
+  if (s_hr === "alert" && parseFloat(d.hrAlmacen) > 70) add(2, "Almacenamiento", "Humedad relativa alta en bodega",
+    `Con ${d.hrAlmacen}% de HR el café absorbe humedad y puede desarrollar hongos. Mejorar ventilación, usar sacos de fique y separar del suelo sobre estibas.`,
+    "Impacto en pérdida de peso y calidad");
 
-      const s_hr = semaforo("hrAlmacen", d.hrAlmacen);
-      if (s_hr === "alert" && parseFloat(d.hrAlmacen) > 70) add(2, "Almacenamiento", "Humedad relativa alta en bodega",
-        `Con ${d.hrAlmacen}% de HR el café absorbe humedad y puede desarrollar hongos. Mejorar ventilación, usar sacos de fique y separar del suelo.`,
-        "Impacto en pérdida de peso y calidad");
+  const sv = parseFloat(d.puntajeSCA);
+  if (d.puntajeSCA !== "" && sv < 80) add(1, "Calidad en taza", "Café fuera del rango de especialidad",
+    `Con ${d.puntajeSCA} puntos el café no alcanza el umbral SCA (80 pts). La causa más frecuente son defectos evitables: fruto verde en cosecha y fermentación descontrolada.`,
+    "Crítico para acceder a precio premium");
+  else if (d.puntajeSCA !== "" && sv >= 80 && sv < 84) add(2, "Calidad en taza", "Especialidad básico — hay margen de mejora",
+    `Con ${d.puntajeSCA} puntos estás en especialidad básico. Las mejoras de manejo pueden mover el puntaje a 84-86, lo que significa +0,20 a +0,50 USD/lb adicionales.`,
+    "Impacto directo en precio de venta");
 
-      if (d.puntajeSCA !== "" && parseFloat(d.puntajeSCA) < 80) add(1, "Calidad en taza", "Café fuera del rango de especialidad",
-        `Con ${d.puntajeSCA} puntos el café no alcanza el umbral SCA (80 pts). La causa más frecuente son defectos evitables: fruto verde en cosecha y fermentación descontrolada.`,
-        "Crítico para acceder a precio premium");
-      else if (d.puntajeSCA !== "" && parseFloat(d.puntajeSCA) >= 80 && parseFloat(d.puntajeSCA) < 84) add(2, "Calidad en taza", "Especialidad básico — hay margen de mejora",
-        `Con ${d.puntajeSCA} puntos estás en especialidad básico. Las mejoras de manejo pueden mover el puntaje a 84-86 sin cambiar variedad, lo que significa +0,20 a +0,50 USD/lb.`,
-        "Impacto directo en precio de venta");
+  if (recs.length === 0) add(0, "General", "✓ Indicadores en rango ideal",
+    "Todos los datos introducidos están dentro de los rangos de referencia. Continúa con las prácticas actuales y documenta los procesos para garantizar consistencia entre cosechas.",
+    "Mantener y documentar");
 
-      if (recs.length === 0) add(0, "General", "✓ Indicadores en rango ideal",
-        "Todos los datos introducidos están dentro de los rangos de referencia técnica. Continúa con las prácticas actuales y documenta los procesos para garantizar consistencia entre cosechas.",
-        "Mantener y documentar");
+  return recs.sort((a, b) => a.prioridad - b.prioridad);
+}
 
-      return recs.sort((a, b) => a.prioridad - b.prioridad);
-    }
+// ── COMPONENTES ──────────────────────────────────────────────────────────────
 
-    // ── Componentes ──────────────────────────────────────────────────────────
+function IndicadorBar({ label, valor, campo }) {
+  const s = semaforo(campo, valor);
+  const r = REF[campo];
+  const v = parseFloat(valor);
+  let pct = null;
+  if (!isNaN(v) && r) {
+    const [lo, hi] = r.ideal;
+    const min = lo * 0.5; const max = hi * 1.5;
+    pct = Math.min(100, Math.max(2, ((v - min) / (max - min)) * 100));
+  }
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.earth }}>{iconSem(s)} {label}</span>
+        {s && <span style={{ fontSize: 11, color: colorSem(s), fontWeight: 700 }}>{labelSem(s)}</span>}
+      </div>
+      {pct !== null && (
+        <div style={{ background: "#DDD5C4", borderRadius: 6, height: 10, position: "relative", marginBottom: 4 }}>
+          {r && (() => {
+            const [lo, hi] = r.ideal;
+            const min = lo * 0.5; const max = hi * 1.5;
+            const loPct = ((lo - min) / (max - min)) * 100;
+            const hiPct = ((hi - min) / (max - min)) * 100;
+            return <div style={{ position: "absolute", left: `${loPct}%`, width: `${hiPct - loPct}%`, top: 0, bottom: 0, background: C.mist, borderRadius: 6 }} />;
+          })()}
+          <div style={{ position: "absolute", left: `${Math.min(pct, 96)}%`, top: -3, width: 6, height: 16, background: colorSem(s), borderRadius: 3, transform: "translateX(-50%)", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+        </div>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 12, color: C.bark, fontWeight: 600 }}>{valor !== "" ? `Tu valor: ${valor} ${r?.unidad || ""}` : "Sin dato aún"}</span>
+        {r && <span style={{ fontSize: 10, color: C.bark }}>Ideal: {r.ideal[0]}–{r.ideal[1]} {r.unidad}</span>}
+      </div>
+    </div>
+  );
+}
 
-    function IndicadorBar({ label, valor, campo }) {
-      const s = semaforo(campo, valor);
-      const r = REF[campo];
-      const v = parseFloat(valor);
-      let pct = null;
-      if (!isNaN(v) && r) {
-        const [lo, hi] = r.ideal;
-        const min = lo * 0.5; const max = hi * 1.5;
-        pct = Math.min(100, Math.max(0, ((v - min) / (max - min)) * 100));
-      }
-      return (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.earth }}>{label}</span>
-            {s && <span style={{ fontSize: 11, color: colorSem(s), fontWeight: 700 }}>{labelSem(s)}</span>}
+// Campo de texto con teclado correcto por tipo
+function Campo({ label, name, value, onChange, inputMode = "decimal", placeholder, ayuda, min, max, step = "0.1", tipo = "number" }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <label style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.earth, marginBottom: 5 }}>{label}</label>
+      {ayuda && <p style={{ fontSize: 12, color: C.bark, marginBottom: 8, lineHeight: 1.55 }}>{ayuda}</p>}
+      <input
+        type={tipo}
+        inputMode={inputMode}
+        value={value}
+        onChange={e => onChange(name, e.target.value)}
+        placeholder={placeholder || "—"}
+        min={min} max={max} step={step}
+        style={{
+          width: "100%", padding: "13px 16px",
+          border: `2px solid ${value ? C.clay : "#D4C4B0"}`,
+          borderRadius: 10, fontSize: 16,
+          background: C.white, color: C.earth,
+          outline: "none", fontFamily: "inherit",
+          transition: "border-color 0.2s",
+        }}
+        onFocus={e => e.target.style.borderColor = C.roast}
+        onBlur={e => e.target.style.borderColor = value ? C.clay : "#D4C4B0"}
+      />
+    </div>
+  );
+}
+
+// Selector tipo botones grandes (más fácil en táctil que input numérico para opciones acotadas)
+function SelectorBotones({ label, name, value, onChange, opciones, ayuda }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <label style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.earth, marginBottom: 5 }}>{label}</label>
+      {ayuda && <p style={{ fontSize: 12, color: C.bark, marginBottom: 8, lineHeight: 1.55 }}>{ayuda}</p>}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {opciones.map(op => {
+          const sel = String(value) === String(op.valor);
+          return (
+            <button key={op.valor} onClick={() => onChange(name, String(op.valor))}
+              style={{
+                padding: "10px 16px", borderRadius: 10, border: `2px solid ${sel ? C.roast : C.clay}`,
+                background: sel ? C.roast : C.white, color: sel ? C.cream : C.roast,
+                fontSize: 14, fontWeight: sel ? 800 : 500, cursor: "pointer",
+                minHeight: 44, transition: "all 0.15s",
+              }}>
+              {op.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SeccionHeader({ numero, titulo, subtitulo }) {
+  return (
+    <div style={{ marginBottom: 24 }} className="seccion">
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.roast, color: C.cream,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 900, flexShrink: 0 }}>{numero}</div>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: C.earth, lineHeight: 1.2 }}>{titulo}</h2>
+      </div>
+      {subtitulo && <p style={{ margin: "0 0 0 48px", fontSize: 13, color: C.bark, lineHeight: 1.55 }}>{subtitulo}</p>}
+    </div>
+  );
+}
+
+function TipBox({ titulo, texto }) {
+  return (
+    <div style={{ background: "#E8F0E0", borderRadius: 10, padding: "14px 16px", marginBottom: 20,
+      borderLeft: `4px solid ${C.leaf}` }}>
+      {titulo && <div style={{ fontSize: 13, fontWeight: 800, color: C.leaf, marginBottom: 5 }}>{titulo}</div>}
+      <div style={{ fontSize: 13, color: C.roast, lineHeight: 1.6 }}>{texto}</div>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────────
+const SECCIONES = ["Finca", "Cosecha", "Beneficio", "Secado", "Trilla", "Diagnóstico"];
+const ESTADO = {
+  nombre: "", vereda: "", altitud: "", variedad: "", hectareas: "",
+  pctRojos: "", puntajeSCA: "", fermentacion: "", relacionCereza: "",
+  humedadPergamino: "", hrAlmacen: "", mermaTrilla: "", pctPasilla: "",
+};
+
+function App() {
+  const [paso, setPaso] = useState(0);
+  const [datos, setDatos] = useState(ESTADO);
+  const set = useCallback((name, val) => setDatos(d => ({ ...d, [name]: val })), []);
+  const progreso = (paso / (SECCIONES.length - 1)) * 100;
+  const recs = generarRecomendaciones(datos);
+  const prioridadColor = p => p === 1 ? C.alert : p === 2 ? C.warn : C.ok;
+  const prioridadLabel = p => p === 1 ? "🔴 Prioridad alta" : p === 2 ? "🟡 Prioridad media" : "🟢 Mantener";
+
+  const opcRojos = [
+    {valor:"70",label:"~70%"},{valor:"80",label:"~80%"},{valor:"85",label:"~85%"},
+    {valor:"90",label:"~90%"},{valor:"95",label:"~95%"},{valor:"99",label:"+99%"},
+  ];
+  const opcFerm = [
+    {valor:"8",label:"8h"},{valor:"10",label:"10h"},{valor:"12",label:"12h"},
+    {valor:"16",label:"16h"},{valor:"20",label:"20h"},{valor:"24",label:"24h"},
+    {valor:"30",label:"30h"},{valor:"36",label:"+36h"},
+  ];
+  const opcHumPerg = [
+    {valor:"8",label:"8%"},{valor:"9",label:"9%"},{valor:"10",label:"10%"},
+    {valor:"11",label:"11%"},{valor:"12",label:"12%"},{valor:"13",label:"13%"},
+    {valor:"15",label:"15%"},{valor:"18",label:"+18%"},
+  ];
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.cream, maxWidth: 480, margin: "0 auto", position: "relative" }}>
+
+      {/* HEADER */}
+      <div className="header-safe" style={{ background: C.earth, paddingLeft: 20, paddingRight: 20, paddingBottom: 14, position: "sticky", top: 0, zIndex: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, paddingTop: 4 }}>
+          <span style={{ fontSize: 24 }}>☕</span>
+          <div>
+            <div style={{ fontSize: 10, color: C.clay, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>Ubuntu Café · San Adolfo, Huila</div>
+            <div style={{ fontSize: 16, color: C.cream, fontWeight: 900 }}>Diagnóstico de Finca</div>
           </div>
-          {pct !== null && (
-            <div style={{ background: C.fog, borderRadius: 6, height: 8, overflow: "visible", marginBottom: 3, position: "relative" }}>
-              {r && (() => {
-                const [lo, hi] = r.ideal;
-                const min = lo * 0.5; const max = hi * 1.5;
-                const loPct = ((lo - min) / (max - min)) * 100;
-                const hiPct = ((hi - min) / (max - min)) * 100;
-                return <div style={{ position: "absolute", left: `${loPct}%`, width: `${hiPct - loPct}%`, top: 0, bottom: 0, background: C.mist, borderRadius: 6 }} />;
-              })()}
-              <div style={{ position: "absolute", left: `${Math.min(pct, 97)}%`, top: -3, width: 5, height: 14, background: colorSem(s), borderRadius: 3, transform: "translateX(-50%)" }} />
+        </div>
+        {/* Barra de progreso */}
+        <div style={{ background: "#4A2A14", borderRadius: 4, height: 5, marginBottom: 8 }}>
+          <div style={{ height: 5, borderRadius: 4, background: C.clay, width: `${progreso}%`, transition: "width 0.4s ease" }} />
+        </div>
+        {/* Pasos clickables */}
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          {SECCIONES.map((s, i) => (
+            <span key={s} onClick={() => i < paso && setPaso(i)}
+              style={{ fontSize: 9, fontWeight: i === paso ? 900 : 400,
+                color: i === paso ? C.cream : i < paso ? C.clay : "#6B4030",
+                cursor: i < paso ? "pointer" : "default", letterSpacing: 0.3 }}>{s}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* CONTENIDO */}
+      <div className="scroll-area seccion" style={{ padding: "24px 20px 120px" }} key={paso}>
+
+        {/* ── PASO 0: FINCA ── */}
+        {paso === 0 && <>
+          <SeccionHeader numero="1" titulo="Tu finca" subtitulo="Datos básicos para contextualizar tu diagnóstico" />
+          <Campo label="Nombre de la finca" name="nombre" value={datos.nombre} onChange={set}
+            tipo="text" inputMode="text" placeholder="Ej. Finca El Porvenir" />
+          <Campo label="Vereda" name="vereda" value={datos.vereda} onChange={set}
+            tipo="text" inputMode="text" placeholder="Ej. La Cristalina" />
+          <Campo label="Altitud (msnm)" name="altitud" value={datos.altitud} onChange={set}
+            inputMode="numeric" placeholder="Ej. 1520" min={800} max={2500} step="10"
+            ayuda="San Adolfo está entre 1.350 y 1.700 msnm. La altitud influye en la acidez y el perfil de taza." />
+          <Campo label="Variedad principal" name="variedad" value={datos.variedad} onChange={set}
+            tipo="text" inputMode="text" placeholder="Ej. Castillo, Caturra, Colombia" />
+          <Campo label="Hectáreas en café" name="hectareas" value={datos.hectareas} onChange={set}
+            inputMode="decimal" placeholder="Ej. 2.5" min={0.1} max={50} step="0.5" />
+          {datos.altitud && (
+            <div style={{ background: C.fog, borderRadius: 12, padding: 14, marginTop: 4 }}>
+              <IndicadorBar label="Altitud" valor={datos.altitud} campo="altitud" />
             </div>
           )}
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, color: C.bark }}>{valor !== "" ? `${valor} ${r?.unidad || ""}` : "Sin dato"}</span>
-            {r && <span style={{ fontSize: 10, color: C.bark }}>Ideal: {r.ideal[0]}–{r.ideal[1]} {r.unidad} · {r.fuente}</span>}
+        </>}
+
+        {/* ── PASO 1: COSECHA ── */}
+        {paso === 1 && <>
+          <SeccionHeader numero="2" titulo="Cosecha" subtitulo="La madurez del fruto es la palanca de mayor impacto sobre calidad y merma" />
+          <TipBox titulo="¿Cómo saber tu % de frutos rojos?" texto="Coge 100 cerezas al azar de diferentes plantas. Cuenta cuántas están completamente rojas (color cereza uniforme). Ese número es tu porcentaje." />
+          <SelectorBotones label="% de frutos rojos en tu cosecha" name="pctRojos" value={datos.pctRojos} onChange={set}
+            opciones={opcRojos}
+            ayuda="¿Qué porcentaje de los frutos que recoges en un día típico están en punto de madurez completa?" />
+          <Campo label="Puntaje SCA (opcional)" name="puntajeSCA" value={datos.puntajeSCA} onChange={set}
+            inputMode="decimal" placeholder="Ej. 82.5" min={60} max={100} step="0.25"
+            ayuda="Si nunca han catado tu café, deja este campo vacío. Si tienes un dato de catación anterior, introdúcelo." />
+          <div style={{ background: C.fog, borderRadius: 12, padding: 14 }}>
+            <IndicadorBar label="% frutos rojos en cosecha" valor={datos.pctRojos} campo="pctRojos" />
+            {datos.puntajeSCA !== "" && <IndicadorBar label="Puntaje SCA" valor={datos.puntajeSCA} campo="puntajeSCA" />}
           </div>
-        </div>
-      );
-    }
+        </>}
 
-    function Campo({ label, name, value, onChange, tipo = "number", placeholder, ayuda, min, max, step = "0.1" }) {
-      return (
-        <div style={{ marginBottom: 18 }}>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.earth, marginBottom: 4 }}>{label}</label>
-          {ayuda && <p style={{ fontSize: 11, color: C.bark, marginBottom: 6, lineHeight: 1.5 }}>{ayuda}</p>}
-          <input type={tipo} value={value} onChange={e => onChange(name, e.target.value)}
-            placeholder={placeholder || "—"} min={min} max={max} step={step}
-            style={{ width: "100%", padding: "10px 14px", border: `1.5px solid ${C.clay}`, borderRadius: 8,
-              fontSize: 15, background: C.white, color: C.earth, outline: "none", fontFamily: "inherit" }} />
-        </div>
-      );
-    }
-
-    function SeccionHeader({ numero, titulo, subtitulo }) {
-      return (
-        <div style={{ marginBottom: 22 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.roast, color: C.cream,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, flexShrink: 0 }}>{numero}</div>
-            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: C.earth }}>{titulo}</h2>
+        {/* ── PASO 2: BENEFICIO ── */}
+        {paso === 2 && <>
+          <SeccionHeader numero="3" titulo="Beneficio húmedo" subtitulo="Fermentación y despulpado definen si el café tendrá defectos en taza" />
+          <SelectorBotones label="Tiempo de fermentación" name="fermentacion" value={datos.fermentacion} onChange={set}
+            opciones={opcFerm}
+            ayuda="¿Cuántas horas deja fermentando el café baboso antes de lavarlo?" />
+          <Campo label="Relación conversión cereza → pergamino (:1)" name="relacionCereza" value={datos.relacionCereza} onChange={set}
+            inputMode="decimal" placeholder="Ej. 5.2" min={3} max={8} step="0.1"
+            ayuda="Divide los kg de cereza recogidos entre los kg de pergamino seco obtenidos. Ej: 500 kg cereza ÷ 96 kg pergamino = 5,2" />
+          <div style={{ background: C.fog, borderRadius: 12, padding: 14 }}>
+            <IndicadorBar label="Tiempo de fermentación" valor={datos.fermentacion} campo="fermentacion" />
+            <IndicadorBar label="Relación cereza:pergamino" valor={datos.relacionCereza} campo="relacionCereza" />
           </div>
-          {subtitulo && <p style={{ margin: "0 0 0 42px", fontSize: 12, color: C.bark, lineHeight: 1.5 }}>{subtitulo}</p>}
-        </div>
-      );
-    }
+        </>}
 
-    const SECCIONES = ["Finca", "Cosecha", "Beneficio", "Secado", "Trilla", "Diagnóstico"];
-    const ESTADO = { nombre: "", vereda: "", altitud: "", variedad: "", hectareas: "",
-      pctRojos: "", puntajeSCA: "", fermentacion: "", relacionCereza: "",
-      humedadPergamino: "", hrAlmacen: "", mermaTrilla: "", pctPasilla: "" };
-
-    function App() {
-      const [paso, setPaso] = React.useState(0);
-      const [datos, setDatos] = React.useState(ESTADO);
-      const set = (name, val) => setDatos(d => ({ ...d, [name]: val }));
-      const progreso = (paso / (SECCIONES.length - 1)) * 100;
-      const recs = generarRecomendaciones(datos);
-      const prioridadColor = p => p === 1 ? C.alert : p === 2 ? C.warn : C.ok;
-      const prioridadLabel = p => p === 1 ? "Prioridad alta" : p === 2 ? "Prioridad media" : "Mantener";
-
-      return (
-        <div style={{ minHeight: "100vh", background: C.cream, maxWidth: 480, margin: "0 auto" }}>
-
-          {/* HEADER */}
-          <div style={{ background: C.earth, padding: "18px 20px 14px", position: "sticky", top: 0, zIndex: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <span style={{ fontSize: 22 }}>☕</span>
-              <div>
-                <div style={{ fontSize: 10, color: C.clay, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase" }}>Ubuntu Café · San Adolfo, Huila</div>
-                <div style={{ fontSize: 15, color: C.cream, fontWeight: 800 }}>Diagnóstico de Finca</div>
-              </div>
-            </div>
-            <div style={{ background: C.roast, borderRadius: 4, height: 4 }}>
-              <div style={{ height: 4, borderRadius: 4, background: C.clay, width: `${progreso}%`, transition: "width 0.4s ease" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7 }}>
-              {SECCIONES.map((s, i) => (
-                <span key={s} onClick={() => i < paso && setPaso(i)}
-                  style={{ fontSize: 9, fontWeight: i === paso ? 800 : 400, color: i <= paso ? C.clay : C.roast, cursor: i < paso ? "pointer" : "default" }}>{s}</span>
-              ))}
-            </div>
+        {/* ── PASO 3: SECADO ── */}
+        {paso === 3 && <>
+          <SeccionHeader numero="4" titulo="Secado y almacenamiento" subtitulo="La humedad final determina pérdida de peso y riesgo de hongos" />
+          <TipBox titulo="¿No tienes medidor de humedad?" texto="El pergamino entre 10-12% de humedad suena 'crujiente' y duro al apretarlo entre los dedos. Si se siente blando o flexible, aún está húmedo." />
+          <SelectorBotones label="Humedad del pergamino seco (%)" name="humedadPergamino" value={datos.humedadPergamino} onChange={set}
+            opciones={opcHumPerg}
+            ayuda="Selecciona la humedad aproximada de tu café pergamino al finalizar el secado." />
+          <Campo label="Humedad relativa de la bodega (%HR)" name="hrAlmacen" value={datos.hrAlmacen} onChange={set}
+            inputMode="numeric" placeholder="Ej. 65" min={30} max={100} step="1"
+            ayuda="Bodega seca + ventilada + separada del suelo ≈ 60-70%. Bodega húmeda o junto a cocina puede superar el 80%." />
+          <div style={{ background: C.fog, borderRadius: 12, padding: 14 }}>
+            <IndicadorBar label="Humedad pergamino seco" valor={datos.humedadPergamino} campo="humedadPergamino" />
+            <IndicadorBar label="Humedad relativa bodega" valor={datos.hrAlmacen} campo="hrAlmacen" />
           </div>
+        </>}
 
-          <div style={{ padding: "22px 20px 100px" }}>
-
-            {/* PASO 0 */}
-            {paso === 0 && <>
-              <SeccionHeader numero="1" titulo="Tu finca" subtitulo="Datos básicos para contextualizar tu diagnóstico" />
-              <Campo label="Nombre de la finca" name="nombre" value={datos.nombre} onChange={set} tipo="text" placeholder="Ej. Finca El Porvenir" />
-              <Campo label="Vereda" name="vereda" value={datos.vereda} onChange={set} tipo="text" placeholder="Ej. La Cristalina" />
-              <Campo label="Altitud (msnm)" name="altitud" value={datos.altitud} onChange={set} placeholder="Ej. 1520"
-                ayuda="La altitud influye en la densidad del grano, la acidez y el perfil de taza. San Adolfo está entre 1.350 y 1.700 msnm." />
-              <Campo label="Variedad principal" name="variedad" value={datos.variedad} onChange={set} tipo="text" placeholder="Ej. Castillo, Caturra, Colombia" />
-              <Campo label="Hectáreas en café" name="hectareas" value={datos.hectareas} onChange={set} placeholder="Ej. 2.5" step="0.5" />
-              <div style={{ background: C.fog, borderRadius: 10, padding: 14 }}>
-                <IndicadorBar label="Altitud" valor={datos.altitud} campo="altitud" />
-              </div>
-            </>}
-
-            {/* PASO 1 */}
-            {paso === 1 && <>
-              <SeccionHeader numero="2" titulo="Cosecha" subtitulo="La madurez del fruto es la palanca de mayor impacto sobre calidad y merma" />
-              <Campo label="% de frutos rojos en tu cosecha" name="pctRojos" value={datos.pctRojos} onChange={set}
-                min={0} max={100} step="1" placeholder="Ej. 88"
-                ayuda="Estima qué % de los frutos que recoges están maduros (color rojo/cereza completo). Puedes contar 100 frutos al azar y contar los rojos." />
-              <Campo label="Puntaje SCA (si tienes catación reciente)" name="puntajeSCA" value={datos.puntajeSCA} onChange={set}
-                min={60} max={100} step="0.25" placeholder="Ej. 82.5"
-                ayuda="Si nunca han catado tu café, deja este campo vacío. Si tienes un dato de catación anterior, introdúcelo." />
-              <div style={{ background: C.fog, borderRadius: 10, padding: 14 }}>
-                <IndicadorBar label="% frutos rojos en cosecha" valor={datos.pctRojos} campo="pctRojos" />
-                {datos.puntajeSCA !== "" && <IndicadorBar label="Puntaje SCA" valor={datos.puntajeSCA} campo="puntajeSCA" />}
-              </div>
-            </>}
-
-            {/* PASO 2 */}
-            {paso === 2 && <>
-              <SeccionHeader numero="3" titulo="Beneficio húmedo" subtitulo="Fermentación y despulpado definen si el café tendrá defectos en taza" />
-              <Campo label="Tiempo de fermentación (horas)" name="fermentacion" value={datos.fermentacion} onChange={set}
-                min={0} max={72} step="1" placeholder="Ej. 18"
-                ayuda="¿Cuántas horas deja fermentando el café baboso antes de lavar? En zonas más cálidas puede ser 12h, en zonas más frías hasta 24h." />
-              <Campo label="Relación conversión cereza → pergamino" name="relacionCereza" value={datos.relacionCereza} onChange={set}
-                min={3} max={8} step="0.1" placeholder="Ej. 5.2"
-                ayuda="Kg de cereza ÷ kg de pergamino obtenido. Ej: si recoges 500 kg de cereza y obtienes 95 kg de pergamino seco, tu relación es 5,26:1" />
-              <div style={{ background: C.fog, borderRadius: 10, padding: 14 }}>
-                <IndicadorBar label="Tiempo de fermentación" valor={datos.fermentacion} campo="fermentacion" />
-                <IndicadorBar label="Relación cereza:pergamino" valor={datos.relacionCereza} campo="relacionCereza" />
-              </div>
-            </>}
-
-            {/* PASO 3 */}
-            {paso === 3 && <>
-              <SeccionHeader numero="4" titulo="Secado y almacenamiento" subtitulo="La humedad final del pergamino determina pérdida de peso y riesgo de hongos" />
-              <Campo label="Humedad del pergamino seco (%)" name="humedadPergamino" value={datos.humedadPergamino} onChange={set}
-                min={5} max={25} step="0.5" placeholder="Ej. 11"
-                ayuda="Si tienes medidor de humedad úsalo. El rango de 10-12% es el objetivo: el pergamino que suena 'crujiente' al apretarlo suele estar en ese rango." />
-              <Campo label="Humedad relativa de la bodega (%)" name="hrAlmacen" value={datos.hrAlmacen} onChange={set}
-                min={30} max={100} step="1" placeholder="Ej. 65"
-                ayuda="Bodega seca, ventilada y separada del suelo = probablemente 60-70%. Bodega húmeda o junto a cocina = puede superar 80%." />
-              <div style={{ background: C.fog, borderRadius: 10, padding: 14 }}>
-                <IndicadorBar label="Humedad pergamino seco" valor={datos.humedadPergamino} campo="humedadPergamino" />
-                <IndicadorBar label="Humedad relativa bodega" valor={datos.hrAlmacen} campo="hrAlmacen" />
-              </div>
-            </>}
-
-            {/* PASO 4 */}
-            {paso === 4 && <>
-              <SeccionHeader numero="5" titulo="Trilla" subtitulo="La merma y el % de pasilla revelan la calidad acumulada del proceso" />
-              <Campo label="Merma en trilla (%)" name="mermaTrilla" value={datos.mermaTrilla} onChange={set}
-                min={10} max={35} step="0.5" placeholder="Ej. 19"
-                ayuda="La FNC usa 19% como estándar (factor 94). Si el trillador te da este dato por lote, introdúcelo aquí." />
-              <Campo label="% de pasilla en trilla" name="pctPasilla" value={datos.pctPasilla} onChange={set}
-                min={0} max={30} step="0.5" placeholder="Ej. 6"
-                ayuda="Grano partido, negro, manchado o con defectos que sale separado del café de primera. Si el trillador lo reporta, úsalo." />
-              <div style={{ background: C.fog, borderRadius: 10, padding: 14 }}>
-                <IndicadorBar label="Merma en trilla" valor={datos.mermaTrilla} campo="mermaTrilla" />
-                <IndicadorBar label="% pasilla" valor={datos.pctPasilla} campo="pctPasilla" />
-              </div>
-            </>}
-
-            {/* PASO 5: DIAGNÓSTICO */}
-            {paso === 5 && <>
-              <div style={{ textAlign: "center", marginBottom: 22 }}>
-                <div style={{ fontSize: 34, marginBottom: 6 }}>🌿</div>
-                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: C.earth }}>{datos.nombre || "Tu finca"}</h2>
-                {datos.vereda && <p style={{ margin: "4px 0 0", fontSize: 12, color: C.bark }}>{datos.vereda}{datos.altitud ? ` · ${datos.altitud} msnm` : ""}</p>}
-              </div>
-
-              <div style={{ background: C.fog, borderRadius: 12, padding: 16, marginBottom: 22 }}>
-                <h3 style={{ margin: "0 0 14px", fontSize: 12, fontWeight: 800, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>Resumen de indicadores</h3>
-                <IndicadorBar label="Altitud" valor={datos.altitud} campo="altitud" />
-                <IndicadorBar label="% frutos rojos en cosecha" valor={datos.pctRojos} campo="pctRojos" />
-                {datos.puntajeSCA !== "" && <IndicadorBar label="Puntaje SCA" valor={datos.puntajeSCA} campo="puntajeSCA" />}
-                <IndicadorBar label="Fermentación" valor={datos.fermentacion} campo="fermentacion" />
-                <IndicadorBar label="Relación conversión" valor={datos.relacionCereza} campo="relacionCereza" />
-                <IndicadorBar label="Humedad pergamino" valor={datos.humedadPergamino} campo="humedadPergamino" />
-                <IndicadorBar label="HR bodega" valor={datos.hrAlmacen} campo="hrAlmacen" />
-                <IndicadorBar label="Merma trilla" valor={datos.mermaTrilla} campo="mermaTrilla" />
-                <IndicadorBar label="% pasilla" valor={datos.pctPasilla} campo="pctPasilla" />
-              </div>
-
-              <h3 style={{ margin: "0 0 14px", fontSize: 12, fontWeight: 800, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>Áreas de mejora detectadas</h3>
-              {recs.map((r, i) => (
-                <div key={i} style={{ background: C.white, borderRadius: 12, padding: 16, marginBottom: 12,
-                  borderLeft: `4px solid ${prioridadColor(r.prioridad)}`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: prioridadColor(r.prioridad), textTransform: "uppercase", letterSpacing: 1, marginBottom: 5 }}>
-                    {prioridadLabel(r.prioridad)} · {r.area}
-                  </div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: C.earth, marginBottom: 6 }}>{r.titulo}</div>
-                  <div style={{ fontSize: 12, color: C.roast, lineHeight: 1.6, marginBottom: 8 }}>{r.texto}</div>
-                  <div style={{ fontSize: 11, color: C.bark, fontStyle: "italic" }}>💡 {r.impacto}</div>
-                </div>
-              ))}
-
-              <div style={{ background: C.earth, borderRadius: 12, padding: 14, marginTop: 20, textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: C.clay, marginBottom: 3 }}>Referencias técnicas</div>
-                <div style={{ fontSize: 10, color: C.bark, lineHeight: 1.6 }}>Cenicafé · FNC · SCA · Specialty Transaction Guide 2024/25</div>
-              </div>
-            </>}
+        {/* ── PASO 4: TRILLA ── */}
+        {paso === 4 && <>
+          <SeccionHeader numero="5" titulo="Trilla" subtitulo="La merma y el % de pasilla revelan la calidad acumulada de todo el proceso" />
+          <Campo label="Merma en trilla (%)" name="mermaTrilla" value={datos.mermaTrilla} onChange={set}
+            inputMode="decimal" placeholder="Ej. 19" min={10} max={35} step="0.5"
+            ayuda="Dato que da el trillador: diferencia entre kg de pergamino que entran y kg de almendra que salen. Estándar FNC = 19%." />
+          <Campo label="% de pasilla en trilla" name="pctPasilla" value={datos.pctPasilla} onChange={set}
+            inputMode="decimal" placeholder="Ej. 6" min={0} max={30} step="0.5"
+            ayuda="Grano partido, negro o manchado que el trillador separa del café de primera. Pídele este dato al trillador por lote." />
+          <div style={{ background: C.fog, borderRadius: 12, padding: 14 }}>
+            <IndicadorBar label="Merma en trilla" valor={datos.mermaTrilla} campo="mermaTrilla" />
+            <IndicadorBar label="% pasilla" valor={datos.pctPasilla} campo="pctPasilla" />
           </div>
+        </>}
 
-          {/* NAVEGACIÓN */}
-          <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%",
-            maxWidth: 480, background: C.white, padding: "12px 20px", borderTop: `1px solid ${C.fog}`, display: "flex", gap: 10 }}>
-            {paso > 0 && (
-              <button onClick={() => setPaso(p => p - 1)} style={{ flex: 1, padding: "12px 0", borderRadius: 10,
-                border: `1.5px solid ${C.clay}`, background: "transparent", color: C.roast, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>← Atrás</button>
-            )}
-            {paso < SECCIONES.length - 1 ? (
-              <button onClick={() => setPaso(p => p + 1)} style={{ flex: 2, padding: "12px 0", borderRadius: 10,
-                border: "none", background: C.roast, color: C.cream, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
-                {paso === SECCIONES.length - 2 ? "Ver diagnóstico →" : "Continuar →"}
-              </button>
-            ) : (
-              <button onClick={() => { setDatos(ESTADO); setPaso(0); }} style={{ flex: 2, padding: "12px 0", borderRadius: 10,
-                border: "none", background: C.leaf, color: C.cream, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>Nueva finca ↺</button>
+        {/* ── PASO 5: DIAGNÓSTICO ── */}
+        {paso === 5 && <>
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🌿</div>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: C.earth }}>{datos.nombre || "Tu finca"}</h2>
+            {(datos.vereda || datos.altitud) && (
+              <p style={{ margin: "5px 0 0", fontSize: 13, color: C.bark }}>
+                {[datos.vereda, datos.altitud ? `${datos.altitud} msnm` : ""].filter(Boolean).join(" · ")}
+              </p>
             )}
           </div>
-        </div>
-      );
-    }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
+          {/* Resumen indicadores */}
+          <div style={{ background: C.fog, borderRadius: 14, padding: 16, marginBottom: 24 }}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>
+              Resumen de indicadores
+            </h3>
+            <IndicadorBar label="Altitud" valor={datos.altitud} campo="altitud" />
+            <IndicadorBar label="% frutos rojos en cosecha" valor={datos.pctRojos} campo="pctRojos" />
+            {datos.puntajeSCA !== "" && <IndicadorBar label="Puntaje SCA" valor={datos.puntajeSCA} campo="puntajeSCA" />}
+            <IndicadorBar label="Fermentación" valor={datos.fermentacion} campo="fermentacion" />
+            <IndicadorBar label="Relación cereza:pergamino" valor={datos.relacionCereza} campo="relacionCereza" />
+            <IndicadorBar label="Humedad pergamino" valor={datos.humedadPergamino} campo="humedadPergamino" />
+            <IndicadorBar label="HR bodega" valor={datos.hrAlmacen} campo="hrAlmacen" />
+            <IndicadorBar label="Merma trilla" valor={datos.mermaTrilla} campo="mermaTrilla" />
+            <IndicadorBar label="% pasilla" valor={datos.pctPasilla} campo="pctPasilla" />
+          </div>
+
+          {/* Recomendaciones */}
+          <h3 style={{ margin: "0 0 14px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>
+            Áreas de mejora detectadas
+          </h3>
+          {recs.map((r, i) => (
+            <div key={i} style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 14,
+              borderLeft: `4px solid ${prioridadColor(r.prioridad)}`, boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: prioridadColor(r.prioridad), marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                {prioridadLabel(r.prioridad)} · {r.area}
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.earth, marginBottom: 8, lineHeight: 1.3 }}>{r.titulo}</div>
+              <div style={{ fontSize: 13, color: C.roast, lineHeight: 1.65, marginBottom: 10 }}>{r.texto}</div>
+              <div style={{ fontSize: 12, color: C.bark, fontStyle: "italic", paddingTop: 8, borderTop: `1px solid ${C.fog}` }}>
+                💡 {r.impacto}
+              </div>
+            </div>
+          ))}
+
+          <div style={{ background: C.earth, borderRadius: 14, padding: 16, marginTop: 24, textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: C.clay, marginBottom: 4, fontWeight: 700 }}>Referencias técnicas</div>
+            <div style={{ fontSize: 11, color: "#8B6B5A", lineHeight: 1.7 }}>
+              Cenicafé · Federación Nacional de Cafeteros<br/>SCA · Specialty Transaction Guide 2024/25
+            </div>
+          </div>
+        </>}
+      </div>
+
+      {/* NAVEGACIÓN FIJA */}
+      <div className="nav-safe" style={{
+        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        width: "100%", maxWidth: 480, background: C.white,
+        paddingTop: 12, paddingLeft: 20, paddingRight: 20,
+        borderTop: `1px solid ${C.fog}`,
+        display: "flex", gap: 12,
+        boxShadow: "0 -4px 16px rgba(0,0,0,0.08)",
+      }}>
+        {paso > 0 && (
+          <button onClick={() => setPaso(p => p - 1)} style={{
+            flex: 1, borderRadius: 12, border: `2px solid ${C.clay}`,
+            background: "transparent", color: C.roast,
+            fontSize: 15, fontWeight: 700, cursor: "pointer",
+          }}>← Atrás</button>
+        )}
+        {paso < SECCIONES.length - 1 ? (
+          <button onClick={() => setPaso(p => p + 1)} style={{
+            flex: 2, borderRadius: 12, border: "none",
+            background: C.roast, color: C.cream,
+            fontSize: 15, fontWeight: 900, cursor: "pointer",
+          }}>
+            {paso === SECCIONES.length - 2 ? "Ver diagnóstico →" : "Continuar →"}
+          </button>
+        ) : (
+          <button onClick={() => { setDatos(ESTADO); setPaso(0); }} style={{
+            flex: 2, borderRadius: 12, border: "none",
+            background: C.leaf, color: C.cream,
+            fontSize: 15, fontWeight: 900, cursor: "pointer",
+          }}>Nueva finca ↺</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
 </body>
 </html>

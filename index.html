@@ -53,7 +53,25 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useCallback } = React;
+const { useState, useCallback, useEffect, useRef } = React;
+
+// Mismo backend y mismos códigos que finanzas-cafeteros (Railway)
+const API_BASE = "https://doc-comite-finanzas-production.up.railway.app/api";
+
+async function apiGet(ruta, code) {
+  const r = await fetch(API_BASE + ruta, { headers: { "X-Code": code } });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Error de conexión");
+  return r.json();
+}
+async function apiPut(ruta, code, body) {
+  const r = await fetch(API_BASE + ruta, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-Code": code },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Error de conexión");
+  return r.json();
+}
 
 const C = {
   earth: "#2C1810", roast: "#5C3A21", bark: "#8B5E3C", clay: "#C4956A",
@@ -270,6 +288,52 @@ function TipBox({ titulo, texto }) {
   );
 }
 
+// ── LOGIN (mismo código de finanzas-cafeteros) ────────────────────────────────
+function Login({ onLogin }) {
+  const [codigo, setCodigo] = useState("");
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState("");
+
+  const entrar = async () => {
+    const c = codigo.trim().toUpperCase();
+    if (!c) { setError("Escribe tu código"); return; }
+    setCargando(true); setError("");
+    try {
+      const who = await apiGet("/whoami", c);
+      onLogin(who.code);
+    } catch (e) {
+      setError("Código no reconocido. Verifica con tu formador.");
+    } finally { setCargando(false); }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.cream, maxWidth: 480, margin: "0 auto",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ fontSize: 48, marginBottom: 8 }}>☕</div>
+      <h1 style={{ fontSize: 20, fontWeight: 900, color: C.earth, marginBottom: 4, textAlign: "center" }}>Diagnóstico de Finca</h1>
+      <p style={{ fontSize: 13, color: C.bark, marginBottom: 28, textAlign: "center" }}>Ubuntu Café · San Adolfo, Huila</p>
+      <label style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.earth, marginBottom: 8, alignSelf: "flex-start" }}>
+        Tu código (el mismo de Finanzas Cafeteros)
+      </label>
+      <input
+        type="text" value={codigo} autoFocus
+        onChange={e => { setCodigo(e.target.value); setError(""); }}
+        onKeyDown={e => e.key === "Enter" && entrar()}
+        placeholder="Ej. SA-01"
+        style={{ width: "100%", padding: "13px 16px", border: `2px solid ${error ? C.alert : C.clay}`,
+          borderRadius: 10, fontSize: 18, textAlign: "center", textTransform: "uppercase",
+          background: C.white, color: C.earth, outline: "none", marginBottom: 10 }}
+      />
+      {error && <p style={{ color: C.alert, fontSize: 13, marginBottom: 10 }}>{error}</p>}
+      <button onClick={entrar} disabled={cargando} style={{
+        width: "100%", borderRadius: 12, border: "none", padding: "14px 0",
+        background: C.roast, color: C.cream, fontSize: 16, fontWeight: 900,
+        cursor: "pointer", opacity: cargando ? 0.7 : 1,
+      }}>{cargando ? "Verificando…" : "Entrar →"}</button>
+    </div>
+  );
+}
+
 // ── APP ───────────────────────────────────────────────────────────────────────
 const SECCIONES = ["Finca", "Cosecha", "Beneficio", "Secado", "Trilla", "Diagnóstico"];
 const ESTADO = {
@@ -278,11 +342,33 @@ const ESTADO = {
   humedadPergamino: "", hrAlmacen: "", mermaTrilla: "", pctPasilla: "",
 };
 
-function App() {
+function Diagnostico({ code, onLogout }) {
   const [paso, setPaso] = useState(0);
   const [datos, setDatos] = useState(ESTADO);
+  const [cargado, setCargado] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const set = useCallback((name, val) => setDatos(d => ({ ...d, [name]: val })), []);
   const progreso = (paso / (SECCIONES.length - 1)) * 100;
+
+  // Cargar diagnóstico previamente guardado (si lo hay) al entrar
+  useEffect(() => {
+    apiGet("/diagnostico", code)
+      .then(d => setDatos(prev => ({ ...ESTADO, ...d })))
+      .catch(() => {})
+      .finally(() => setCargado(true));
+  }, [code]);
+
+  // Autoguardado: cada cambio de dato se sincroniza con el servidor
+  const saveTimer = useRef(null);
+  useEffect(() => {
+    if (!cargado) return; // no guardar hasta haber cargado lo existente
+    setGuardando(true);
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      apiPut("/diagnostico", code, datos).catch(() => {}).finally(() => setGuardando(false));
+    }, 700);
+    return () => clearTimeout(saveTimer.current);
+  }, [datos, cargado, code]);
   const recs = generarRecomendaciones(datos);
   const prioridadColor = p => p === 1 ? C.alert : p === 2 ? C.warn : C.ok;
   const prioridadLabel = p => p === 1 ? "🔴 Prioridad alta" : p === 2 ? "🟡 Prioridad media" : "🟢 Mantener";
@@ -309,9 +395,14 @@ function App() {
       <div className="header-safe" style={{ background: C.earth, paddingLeft: 20, paddingRight: 20, paddingBottom: 14, position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, paddingTop: 4 }}>
           <span style={{ fontSize: 24 }}>☕</span>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontSize: 10, color: C.clay, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>Ubuntu Café · San Adolfo, Huila</div>
             <div style={{ fontSize: 16, color: C.cream, fontWeight: 900 }}>Diagnóstico de Finca</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 11, color: C.cream, fontWeight: 800, background: "#4A2A14", borderRadius: 6, padding: "3px 8px" }}>{code}</div>
+            <div style={{ fontSize: 9, color: C.clay, marginTop: 3 }}>{guardando ? "Guardando…" : "✓ Guardado"}</div>
+            <span onClick={onLogout} style={{ fontSize: 9, color: "#8B6B5A", textDecoration: "underline", cursor: "pointer" }}>Cambiar código</span>
           </div>
         </div>
         {/* Barra de progreso */}
@@ -504,6 +595,16 @@ function App() {
       </div>
     </div>
   );
+}
+
+// ── APP raíz: gestiona el código guardado en este dispositivo ────────────────
+function App() {
+  const [code, setCode] = useState(() => localStorage.getItem("dfc_code") || "");
+
+  const onLogin = (c) => { localStorage.setItem("dfc_code", c); setCode(c); };
+  const onLogout = () => { localStorage.removeItem("dfc_code"); setCode(""); };
+
+  return code ? <Diagnostico code={code} onLogout={onLogout} /> : <Login onLogin={onLogin} />;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);

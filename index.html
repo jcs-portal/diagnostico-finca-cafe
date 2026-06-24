@@ -72,6 +72,11 @@ async function apiPut(ruta, code, body) {
   if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Error de conexión");
   return r.json();
 }
+async function apiDelete(ruta, code) {
+  const r = await fetch(API_BASE + ruta, { method: "DELETE", headers: { "X-Code": code } });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Error de conexión");
+  return r.json();
+}
 
 const C = {
   earth: "#2C1810", roast: "#5C3A21", bark: "#8B5E3C", clay: "#C4956A",
@@ -373,6 +378,13 @@ function Diagnostico({ code, onLogout }) {
   const prioridadColor = p => p === 1 ? C.alert : p === 2 ? C.warn : C.ok;
   const prioridadLabel = p => p === 1 ? "🔴 Prioridad alta" : p === 2 ? "🟡 Prioridad media" : "🟢 Mantener";
 
+  const borrarMisDatos = useCallback(async () => {
+    if (!window.confirm("¿Seguro que quieres borrar tu diagnóstico por completo? Esta acción no se puede deshacer.")) return;
+    try { await apiDelete("/diagnostico", code); } catch (e) { /* aunque falle el borrado en servidor, limpiamos localmente */ }
+    setDatos(ESTADO);
+    setPaso(0);
+  }, [code]);
+
   const opcRojos = [
     {valor:"70",label:"~70%"},{valor:"80",label:"~80%"},{valor:"85",label:"~85%"},
     {valor:"90",label:"~90%"},{valor:"95",label:"~95%"},{valor:"99",label:"+99%"},
@@ -558,6 +570,11 @@ function Diagnostico({ code, onLogout }) {
               Cenicafé · Federación Nacional de Cafeteros<br/>SCA · Specialty Transaction Guide 2024/25
             </div>
           </div>
+
+          <button onClick={borrarMisDatos} style={{
+            width: "100%", marginTop: 16, borderRadius: 12, border: `1.5px solid ${C.alert}`, padding: "12px 0",
+            background: "transparent", color: C.alert, fontSize: 13, fontWeight: 800, cursor: "pointer",
+          }}>🗑 Borrar mi diagnóstico</button>
         </>}
       </div>
 

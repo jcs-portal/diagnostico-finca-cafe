@@ -105,6 +105,7 @@ const REF = {
   mermaTrilla:      { ideal: [17, 20],     unidad: "%",     fuente: "FNC" },
   pctPasilla:       { ideal: [0, 8],       unidad: "%",     fuente: "Cenicafé" },
   hrAlmacen:        { ideal: [60, 70],     unidad: "%HR",   fuente: "Cenicafé" },
+  ph:               { ideal: [5.0, 5.5],   unidad: "pH",    fuente: "Cenicafé" },
 };
 
 function semaforo(campo, valor) {
@@ -119,9 +120,134 @@ function semaforo(campo, valor) {
   if (v >= lo - margen && v <= hi + margen) return "warn";
   return "alert";
 }
+const fmt0 = n => Math.round(n).toLocaleString("es-CO");
 const colorSem = s => s === "ok" ? C.ok : s === "warn" ? C.warn : s === "alert" ? C.alert : C.bark;
 const labelSem = s => s === "ok" ? "✓ En rango ideal" : s === "warn" ? "⚠ Cerca del límite" : s === "alert" ? "✗ Fuera del rango" : "";
 const iconSem  = s => s === "ok" ? "🟢" : s === "warn" ? "🟡" : s === "alert" ? "🔴" : "⚪";
+
+// ── Catálogo de plagas y enfermedades (Cenicafé/FNC/Manual del Cafetero Colombiano) ──
+const PLAGAS = [
+  { id: 1, nombre: "Broca del café", cientifico: "Hypothenemus hampei (Ferrari)", tipo: "insecto", icon: "🪲", severidad: 5,
+    descripcion: "Principal plaga del café en Colombia. Afecta más de 920.000 ha en todo el rango altitudinal. Pequeño escarabajo negro de 1,5 mm que perfora el fruto y destruye la almendra.",
+    sintomas: ["Orificio circular (1 mm) en el ombligo del fruto verde o maduro", "Granos perforados con polvo oscuro al abrir el fruto", "Frutos caídos prematuramente con orificio en la base", "Almendra parcial o totalmente consumida", "Granos manchados o con cavidades internas"],
+    umbral: "Intervenir cuando la infestación supera el 2-3% de frutos brocados durante la cosecha (conteo en muestra de 200-300 frutos/lote). Revisar semanalmente.",
+    control_bio: [{ nombre: "Beauveria bassiana (Bb)", dosis: "Cenicafé recomienda aplicar en dosis de 0,8–1,6 kg/ha. Hongo entomopatógeno certificado por Cenicafé.", icon: "🍄" }, { nombre: "Cephalonomia stephanoderis", dosis: "Avispa parasitoide. Liberación en campo: 2.000–3.000 adultos/ha en época de mayor vuelo de broca.", icon: "🐝" }, { nombre: "Phymastichus coffea", dosis: "Parasitoide de adultos. Liberar en lotes con infestación baja-media para fortalecer control biológico.", icon: "🐝" }, { nombre: "Trampas con alcohol etílico + metanol", dosis: "1:1 o 3:1 (etanol:metanol). 3–5 trampas/ha. Monitoreo y reducción de población adulta.", icon: "🏺" }],
+    control_quim: [{ nombre: "Endosulfán (Thiodan)", dosis: "Uso restringido. Solo cuando infestación supera umbral y control biológico es insuficiente. Consultar extensionista FNC.", icon: "⚗️" }, { nombre: "Clorpirifos", dosis: "Aplicar en focos, preferiblemente cuando broca está en etapa de vuelo (no dentro del fruto donde los insecticidas son poco efectivos).", icon: "⚗️" }],
+    control_cult: [{ nombre: "Repase y pepiteo", dosis: "Recoger todos los frutos del suelo y árbol tras cosecha. Elimina el 70-80% del inóculo.", icon: "☕" }, { nombre: "Re-re (Recolección selectiva rápida)", dosis: "Recolectar frutos maduros oportunamente. No dejar frutos sobremaduros en el árbol.", icon: "☕" }, { nombre: "Renovación de cafetales", dosis: "Mantener programa de zoca y siembra para evitar períodos sin frutos.", icon: "🌱" }],
+    fuentes: ["Benavides et al. (2013). Manual del Cafetero Colombiano Vol. 2. Cenicafé.", "FNC – Manejo integrado de plagas: cenicafe.org"] },
+  { id: 2, nombre: "Minador de la hoja", cientifico: "Leucoptera coffeellum (Guérin-Méneville)", tipo: "insecto", icon: "🦋", severidad: 2,
+    descripcion: "Lepidóptero que afecta el follaje especialmente en épocas secas. Actualmente se encuentra bajo control natural en Colombia gracias a parasitoides nativos.",
+    sintomas: ["Manchas amarillentas transparentes en el haz de la hoja (minas foliares)", "Interior de la mancha con larvas blanquecinas visibles al trasluz", "Defoliación severa en épocas secas en lotes sin sombra", "Hojas con múltiples manchas confluentes de color pardo"],
+    umbral: "Problema secundario. Control solo necesario si defoliación supera el 30% del área foliar en lotes con más de 5% de hojas minadas.",
+    control_bio: [{ nombre: "Conservación de parasitoides nativos", dosis: "No aplicar insecticidas de amplio espectro. Los parasitoides del complejo Closterocerus, Mirax y Horismenus controlan naturalmente esta plaga.", icon: "🐝" }, { nombre: "Sombrío regulado", dosis: "Manejar sombrío entre 20-30% para reducir temperaturas extremas que favorecen la plaga.", icon: "🌳" }],
+    control_quim: [{ nombre: "Clorpirifos o dimetoato", dosis: "Solo en casos extremos cuando parasitismo natural es inferior al 40%. Aplicar en focos. Cenicafé desaconseja el control químico rutinario.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Sombrío y nutrición", dosis: "Plantas bien nutridas y con sombra adecuada son más tolerantes. Mantener fertilización oportuna.", icon: "🌱" }, { nombre: "Cosecha oportuna", dosis: "Reducir períodos de estrés del árbol minimiza el impacto del minador.", icon: "☕" }],
+    fuentes: ["Benavides et al. (2013). Manual del Cafetero Colombiano Vol. 2. Cenicafé.", "Cenicafe.org – Manejo integrado de plagas"] },
+  { id: 3, nombre: "Cochinilla harinosa de raíces", cientifico: "Puto barberi / Pseudococcus jackbeardsleyi", tipo: "insecto", icon: "🪳", severidad: 3,
+    descripcion: "Insectos chupadores que atacan las raíces del café. Favorecidos por la sequía. Asociadas frecuentemente con hormigas que las protegen.",
+    sintomas: ["Plantas con amarillamiento y marchitez sin causa aparente", "Al examinar las raíces: presencia de masa blanca algodonosa en la base", "Insectos blancos ovoides cubiertos de cera harinosa en raíces superficiales", "Presencia de hormigas en la base del árbol (señal asociada)", "Reducción de crecimiento y producción"],
+    umbral: "Revisar raíces cuando plantas muestran marchitez o amarillamiento inexplicable. Intervenir cuando más del 5% de plantas/lote muestren síntomas.",
+    control_bio: [{ nombre: "Beauveria bassiana", dosis: "Aplicar en drench al suelo alrededor de las raíces. 1–2 kg/ha en solución acuosa.", icon: "🍄" }, { nombre: "Control de hormigas (indirecto)", dosis: "Reducir poblaciones de hormigas (que protegen la cochinilla) usando cebos específicos.", icon: "🐜" }],
+    control_quim: [{ nombre: "Clorpirifos (drench)", dosis: "Aplicar al suelo húmedo, a razón de 3–5 mL/L, alrededor de la zona radical. Solo en focos con alta infestación.", icon: "⚗️" }, { nombre: "Imidacloprid", dosis: "Sistémico. Aplicar en drench para distribución por el sistema radicular. Consultar dosis con extensionista.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Manejo del riego en sequía", dosis: "Mantener humedad del suelo reduce proliferación. En épocas secas, riego oportuno.", icon: "💧" }, { nombre: "Plantas sanas en almácigo", dosis: "Revisar raíces antes del trasplante. No sembrar plantas con síntomas.", icon: "🌱" }],
+    fuentes: ["Benavides et al. (2013). Manual del Cafetero Colombiano Vol. 2. Cenicafé."] },
+  { id: 4, nombre: "Chinche de la chamusquina", cientifico: "Monalonion velezangeli Carvalho & Costa", tipo: "insecto", icon: "🪳", severidad: 3,
+    descripcion: "Hemíptero que ataca brotes, flores y frutos pequeños. Produce lesiones necróticas similares a una quemadura. Puede confundirse con síntomas de Phoma o deficiencia de boro.",
+    sintomas: ["Brotes terminales y hojas jóvenes con manchas de color pardo oscuro (apariencia quemada)", "Flores y frutitos que se necrosan y caen prematuramente", "Insecto de 10–12 mm, anaranjado con manchas negras, visible en brotes", "Olor penetrante cuando se aplasta el insecto", "Distorsión y deformación de brotes afectados"],
+    umbral: "Intervenir cuando se detecten más de 2 ninfas o adultos por brote en más del 10% de árboles evaluados.",
+    control_bio: [{ nombre: "Control biológico por conservación", dosis: "Evitar insecticidas de amplio espectro. Los depredadores naturales (arañas, chinches predadores) controlan poblaciones bajas.", icon: "🕷️" }],
+    control_quim: [{ nombre: "Clorpirifos o Malatión", dosis: "Aplicar en focos donde se detectan los insectos. Dirigir a brotes y flores afectados.", icon: "⚗️" }, { nombre: "Cipermetrina", dosis: "Piretroide de contacto. Aplicar en horas de menor actividad de abejas.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Sombrío regulado", dosis: "La plaga se favorece en pleno sol. Sombra regulada reduce poblaciones.", icon: "🌳" }, { nombre: "Poda sanitaria", dosis: "Retirar brotes fuertemente afectados para reducir fuente de infestación.", icon: "✂️" }],
+    fuentes: ["Benavides et al. (2013). Manual del Cafetero Colombiano Vol. 2. Cenicafé."] },
+  { id: 5, nombre: "Palomilla del café", cientifico: "Prophantis smaragdina Butler", tipo: "insecto", icon: "🦋", severidad: 2,
+    descripcion: "Lepidóptero que enrolla y une hojas jóvenes con seda, dentro de las cuales se alimenta la larva. Problema esporádico, sin impacto económico constante.",
+    sintomas: ["Hojas jóvenes enrolladas o unidas con hilos de seda", "Interior del rollo con larva verdosa o pardo-verdosa", "Defoliación parcial de brotes afectados", "Excrementos oscuros dentro del enrollamiento foliar"],
+    umbral: "Problema menor. Control solo si más del 20% de brotes muestran enrollamientos activos en plantas en desarrollo.",
+    control_bio: [{ nombre: "Bacillus thuringiensis (Bt)", dosis: "Aplicar sobre brotes afectados cuando larvas están en estados tempranos. 1–2 kg/ha de producto comercial.", icon: "🧫" }],
+    control_quim: [{ nombre: "Clorpirifos", dosis: "Solo en casos de infestación severa. Dirigir a brotes con enrollamientos activos.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Poda de brotes afectados", dosis: "Retirar manualmente brotes enrollados y destruirlos fuera del lote.", icon: "✂️" }],
+    fuentes: ["FNC – Manejo integrado de plagas. Cenicafé."] },
+  { id: 6, nombre: "Roya del cafeto", cientifico: "Hemileia vastatrix Berk. & Broome", tipo: "hongo", icon: "🍂", severidad: 5,
+    descripcion: "Principal enfermedad del café en Colombia y el mundo. Ataca hojas causando defoliación severa. Íntimamente ligada a la producción del árbol y las lluvias. Temperatura óptima 22°C.",
+    sintomas: ["Manchas amarillentas translúcidas en el haz de la hoja", "Polvo anaranjado-amarillo (uredosporas) en el envés de la hoja", "Hojas afectadas que amarillean y caen prematuramente", "Defoliación progresiva de abajo hacia arriba del árbol", "Mayor incidencia en épocas de alta producción y lluvias"],
+    umbral: "Controlar cuando el índice de infección supere el 5% en variedades susceptibles (Típica, Borbón, Caturra). En var. resistentes (Castillo, Cenicafé 1, Tabi) el umbral es mayor.",
+    control_bio: [{ nombre: "Variedades resistentes Cenicafé", dosis: "Castillo®, Cenicafé 1, Tabi. Resistencia durable a la roya. Recomendación principal de Cenicafé. Adquirir semilla certificada en almacenes FNC.", icon: "🌱" }],
+    control_quim: [{ nombre: "Fungicidas sistémicos (triazoles)", dosis: "Cyproconazole (Alto 100 SL): 1,0–2,0 cm³/L. Aplicar preventivamente antes que incidencia supere 5%. Máx. 3 aplicaciones/año.", icon: "⚗️" }, { nombre: "Cyproconazole + Azoxystrobin", dosis: "AmistarXtra 280 SC: 750 cm³/ha (1,8 cm³/L). 2–3 aplicaciones/año, intervalo 45 días. A partir de 60 días post-floración.", icon: "⚗️" }, { nombre: "Fungicidas protectores (cobre)", dosis: "Óxido cuproso 50%: 4 g/L. Uso complementario preventivo. No mezclar con sistémicos.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Renovación de cafetales", dosis: "Sembrar variedades con resistencia durable. Zoca oportuna de lotes envejecidos.", icon: "🌱" }, { nombre: "Nutrición equilibrada", dosis: "Cafetales bien nutridos (N, K, B) son más tolerantes. Aplicar fertilizante según análisis de suelos.", icon: "💊" }, { nombre: "Densidades adecuadas", dosis: "Evitar exceso de sombra y alta densidad que favorecen la enfermedad.", icon: "📐" }],
+    fuentes: ["Cenicafé (2023). Manejo de enfermedades. cenicafe.org/cultivemos_cafe", "Rivillas et al. (2011). La Roya del Cafeto en Colombia. Avances Técnicos Cenicafé 415."] },
+  { id: 7, nombre: "Mancha de hierro", cientifico: "Cercospora coffeicola Berk. & Cooke", tipo: "hongo", icon: "🔴", severidad: 3,
+    descripcion: "Enfermedad fúngica que ataca hojas y frutos. En frutos causa secamiento, caída temprana y mancha del grano. Todas las variedades son susceptibles.",
+    sintomas: ["En hojas: manchas circulares con borde rojizo-pardo y centro grisáceo que caen dejando agujeros", "En frutos verdes: manchas necróticas oscuras con borde rojizo", "Frutos que se secan en el árbol (granos 'guayaba')", "Mayor incidencia en almácigos con nutrición deficiente", "Defoliación prematura en plantas afectadas"],
+    umbral: "Controlar en almácigos cuando incidencia supere 10% de hojas afectadas. En plantación: cuando se detecten frutos afectados antes de maduración.",
+    control_bio: [{ nombre: "Nutrición preventiva", dosis: "Materia orgánica bien descompuesta + 2 aplicaciones de DAP (2g/bolsa a los 2 y 4 meses) en almácigos. La nutrición es el principal manejo preventivo.", icon: "🌱" }],
+    control_quim: [{ nombre: "Dithiocarbamatos (Mancozeb)", dosis: "4 g/L de agua. Protector de contacto. Aplicar cada 30–45 días según severidad.", icon: "⚗️" }, { nombre: "Triazoles (Punch 40CE / Alto 100SL)", dosis: "1,0 mL/L. Sistémico. Intervalo 30–45 días. Más efectivo que protectores en infecciones establecidas.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Nutrición foliar y radicular", dosis: "Corregir deficiencias de N, K y micronutrientes. Plantas nutridas son menos susceptibles.", icon: "💊" }, { nombre: "Manejo de sombra", dosis: "Exceso de sombra y humedad favorecen la enfermedad. Regular a 20–25%.", icon: "🌳" }],
+    fuentes: ["Cenicafé (2023). Manejo de enfermedades. cenicafe.org", "FNC – Extensión cafetera. Manual del cafetero colombiano."] },
+  { id: 8, nombre: "Ojo de gallo / Gotera", cientifico: "Mycena citricolor (Berk. & M.A. Curtis)", tipo: "hongo", icon: "👁️", severidad: 3,
+    descripcion: "Enfermedad fúngica favorecida por alta humedad, sombrío abundante y bajas temperaturas. Típica de cafetales tradicionales con mucha sombra. Afecta hojas, ramas y frutos.",
+    sintomas: ["Lesiones circulares u ovaladas en hojas, color rojizo que pasa a gris claro", "Las manchas se desprenden dejando agujeros en el tejido verde", "Afecta frutos en todos los estados: necrosis y caída prematura", "Mayor incidencia bajo sombra densa en época de lluvias", "Puede producir muerte de ramas y brotes en ataques severos"],
+    umbral: "Controlar cuando incidencia supere 10% de hojas o frutos afectados, especialmente si hay historia de ataques en el lote.",
+    control_bio: [{ nombre: "Regulación del sombrío", dosis: "Reducir sombra a menos del 25%. Mejor luminosidad y aireación es el control más efectivo.", icon: "🌳" }],
+    control_quim: [{ nombre: "Cyproconazole (Alto 100 SL)", dosis: "1,0–2,0 cm³/L. Aplicar preventivamente 30–60 días post-floración o 15 días antes de las lluvias. 3 aplicaciones, intervalo 30–45 días.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Regulación de sombra y podas", dosis: "Ajustar número de tallos y densidad de sombra. Retirar chamizas y hojarasca acumulada.", icon: "✂️" }, { nombre: "Variedades con resistencia parcial", dosis: "Aunque todas son susceptibles, variedades con buen vigor son más tolerantes.", icon: "🌱" }],
+    fuentes: ["Cenicafé (2023). Manejo de enfermedades. cenicafe.org"] },
+  { id: 9, nombre: "Mal rosado", cientifico: "Erythricium salmonicolor (Berk. & Broome)", tipo: "hongo", icon: "🌸", severidad: 3,
+    descripcion: "Enfermedad de tallos y ramas. Se favorece con poca aireación, alta precipitación y ambientes húmedos fríos. Más frecuente en la transición lluvia-sequía.",
+    sintomas: ["Costra rosada a blanquecina sobre la corteza de ramas y tallos", "Telaraña superficial blancuzca visible en etapas tempranas", "Marchitez y secamiento de ramas afectadas (de afuera hacia adentro)", "Hojas y frutos que mueren quedando adheridos a ramas secas", "Mayor incidencia en cafetales con exceso de tallos y poca aireación"],
+    umbral: "Intervenir cuando más del 10% de ramas del tercio productivo muestren síntomas. Control por focos siempre.",
+    control_bio: [{ nombre: "Podas sanitarias preventivas", dosis: "Revisar en época de lluvia. Podar ramas en estado de costra rosada (etapa activa). Retirar en costal fuera del lote.", icon: "✂️" }],
+    control_quim: [{ nombre: "Óxido cuproso (cobre 50%)", dosis: "4 g/L. Aplicar post-poda sobre superficies cortadas. Solo fungicidas cúpricos después de podas sanitarias.", icon: "⚗️" }, { nombre: "AmistarXtra 280 SC", dosis: "Cyproconazole + Azoxystrobin: 750 cm³/ha. 2–3 aplicaciones/año, intervalo 45 días, a partir de 60 días post-floración.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Aireación y regulación de tallos", dosis: "Ajustar número de tallos/ha según densidad de siembra. Retirar chamizas de la parte alta del árbol.", icon: "🌬️" }, { nombre: "Podas en época seca", dosis: "Realizar zoqueos y podas preferiblemente en época seca o de pocas lluvias.", icon: "✂️" }],
+    fuentes: ["Cenicafé (2023). Manejo de enfermedades. cenicafe.org"] },
+  { id: 10, nombre: "Llaga macana", cientifico: "Ceratocystis fimbriata (Ellis & Halst.)", tipo: "hongo", icon: "🪵", severidad: 4,
+    descripcion: "Enfermedad vascular sistémica del tronco. Causa muerte de plantas en todos los estados. Alta diseminación mecánica. Especialmente peligrosa en zoqueos y renovaciones.",
+    sintomas: ["Decoloración interna del tronco: madera con manchas oscuras (al corte transversal)", "Marchitez y muerte de toda la parte aérea de la planta", "Flujo de goma o resina oscura por el tronco o ramas basales", "Heridas en el tronco con coloración oscura y olor a fermento", "Mayor incidencia en plantas recién zocadas o podadas con herramientas contaminadas"],
+    umbral: "No hay umbral de acción curativa. Enfermedad de manejo principalmente preventivo. Eliminar plantas afectadas inmediatamente.",
+    control_bio: [{ nombre: "Trichoderma harzianum (Tricho-D)", dosis: "10 g/L de agua. Aplicar sobre cortes de zoca inmediatamente después del corte. Eficacia similar al control químico.", icon: "🍄" }],
+    control_quim: [{ nombre: "Carbendazim (Derosal / Bavistin)", dosis: "4 g o 4 cm³/L. Aplicar inmediatamente tras cualquier corte (zoca, poda, selección de chupones). Protege la herida.", icon: "⚗️" }, { nombre: "Pintura anticorrosiva + Carbendazim", dosis: "Mezcla al 50% de pintura + 2 g/L de carbendazim. Aplicar sobre cortes de zoca.", icon: "🖌️" }],
+    control_cult: [{ nombre: "Evitar heridas", dosis: "Principal estrategia preventiva. No pisar bases de tallos. Desinfectar herramientas entre plantas.", icon: "🛡️" }, { nombre: "Zoca en época seca", dosis: "Realizar renovaciones en época de pocas lluvias para reducir entrada del hongo.", icon: "☀️" }, { nombre: "Eliminar plantas y raíces enfermas", dosis: "Erradicar plantas afectadas con raíces. No resembrar en el mismo sitio sin tratamiento previo del suelo.", icon: "🗑️" }],
+    fuentes: ["Cenicafé (2023). Manejo de enfermedades. cenicafe.org", "Castro & Rivillas (2003). Avances Técnicos Cenicafé."] },
+  { id: 11, nombre: "Llagas radicales", cientifico: "Rosellinia bunodes / Phytophthora cinnamomi", tipo: "hongo", icon: "🌿", severidad: 4,
+    descripcion: "Pudrición de raíces causada por hongos del suelo. Afectan café y cultivos asociados. Alta persistencia en el suelo. Sin control curativo eficaz.",
+    sintomas: ["Marchitez progresiva sin razón aparente", "Al examinar raíces: raíces oscurecidas, blandas, con olor a putrefacción", "Presencia de micelio blanco o negro entre la corteza y la madera de las raíces", "Plantas que mueren dejando sitios vacíos en el lote (focos)", "Plantas vecinas que empiezan a presentar los mismos síntomas"],
+    umbral: "No hay control curativo. Actuar preventivamente. Cuando se detecta el foco, erradicar y tratar el suelo.",
+    control_bio: [{ nombre: "Trichoderma koningii", dosis: "Aplicar 1 mes después del fungicida. En solarización completada. Volcar suelo y aplicar en drench.", icon: "🍄" }, { nombre: "Micorrizas (Glomus manihotis / Entrophospora colombiana)", dosis: "10–20 g de inóculo/planta al momento del trasplante. Protección preventiva de raíces.", icon: "🌱" }],
+    control_quim: [{ nombre: "Tiofanato de metilo o Carbendazim (drench)", dosis: "4 g/L. Saturar cada sitio/hoyo afectado después de solarización.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Solarización del suelo", dosis: "Voltear suelo y exponer al sol 2–3 meses. Cubrir con plástico negro para acelerar reducción de patógenos.", icon: "☀️" }, { nombre: "Erradicación de plantas y raíces", dosis: "Extraer rigurosamente raíces y troncos de plantas afectadas y vecinas.", icon: "🗑️" }, { nombre: "Cultivo temporal no hospedante", dosis: "Sembrar maíz en sitios en tratamiento mientras se prepara para resembrar café.", icon: "🌽" }],
+    fuentes: ["Cenicafé (2023). Manejo de enfermedades. cenicafe.org", "Castro & Rivillas (2002). Avances Técnicos Cenicafé."] },
+  { id: 12, nombre: "Volcamiento (damping-off)", cientifico: "Rhizoctonia solani Kühn", tipo: "hongo", icon: "🌱", severidad: 2,
+    descripcion: "Enfermedad de germinadores. Ataca la raíz de plántulas antes y después de la emergencia. El único órgano no renovable del café (la raíz) es el afectado.",
+    sintomas: ["Plántulas que se doblan o caen al nivel del suelo ('volcamiento')", "Estrangulamiento en la base del tallo a nivel del suelo", "Raíces con lesiones pardas-oscuras o putrefactas", "Manchas acuosas en el cuello de la plántula", "Aparece en focos dentro del germinador"],
+    umbral: "Problema de germinador. Actuar preventivamente antes de sembrar la semilla. Cuando aparece, eliminar el foco inmediatamente.",
+    control_bio: [{ nombre: "Trichoderma harzianum (Tricho-D)", dosis: "10 g/L. Aplicar en drench al sustrato 6 días antes de sembrar la semilla. 1 L/m².", icon: "🍄" }],
+    control_quim: [{ nombre: "Tiabendazol (Mertec)", dosis: "10 cm³/2 L de agua/m². Aplicar en drench al sembrar la semilla.", icon: "⚗️" }, { nombre: "Pencycurón (Monceren)", dosis: "5 cm³/2 L de agua/m². Al momento de sembrar.", icon: "⚗️" }, { nombre: "Flutolanil (Moncut)", dosis: "5 cm³/2 L de agua/m². Al momento de sembrar.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Germinadores levantados", dosis: "Construir germinadores al menos 40 cm del suelo, con arena y gravilla lavadas.", icon: "🏗️" }, { nombre: "Semilla certificada", dosis: "Usar semilla de var. resistentes a la roya (Castillo, Cenicafé 1, Tabi) de almacenes FNC.", icon: "🌱" }, { nombre: "No reutilizar sustrato", dosis: "Cambiar arena y materiales entre lotes de germinación.", icon: "🔄" }],
+    fuentes: ["Cenicafé (2023). Manejo de enfermedades. cenicafe.org"] },
+  { id: 13, nombre: "Muerte descendente", cientifico: "Phoma spp. (complejo)", tipo: "hongo", icon: "🍃", severidad: 2,
+    descripcion: "Afecta principalmente almácigos y cafetales en altitudes superiores a 1.600 m. Favorecida por corrientes de aire frío. Puede confundirse con daños de chinche o deficiencia de boro.",
+    sintomas: ["Necrosis de brotes terminales que avanza de arriba hacia abajo", "Hojas jóvenes con manchas cafés irregulares que inician desde los bordes", "Brotes que se doblan y secan progresivamente", "Mayor incidencia en épocas frías o con vientos fuertes", "En almácigos expuestos a vientos o corrientes frías"],
+    umbral: "Intervenir cuando incidencia supere el 10% en el lote, o cuando se detecten los primeros focos en almácigos.",
+    control_bio: [{ nombre: "Barreras rompevientos", dosis: "Instalar barreras de maíz, fríjol o guandul al borde de lotes expuestos a vientos fríos.", icon: "🌽" }],
+    control_quim: [{ nombre: "Captán (Captan 80WG)", dosis: "4 g/L de agua. Protector. Aplicar en zonas críticas o focos.", icon: "⚗️" }, { nombre: "Carbendazim (Derosal)", dosis: "1,6 g/L. Sistémico. Aplicar en focos o generalizado si incidencia supera 10%.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Protección de almácigos", dosis: "Acondicionar polisombra y protección lateral para evitar corrientes de viento frío.", icon: "🏗️" }, { nombre: "Poda de brotes afectados", dosis: "Retirar brotes necrosados antes de aplicar tratamiento químico.", icon: "✂️" }],
+    fuentes: ["Cenicafé (2023). Manejo de enfermedades. cenicafe.org"] },
+  { id: 14, nombre: "Arañita roja", cientifico: "Oligonychus yothersi McGregor", tipo: "ácaro", icon: "🕷️", severidad: 2,
+    descripcion: "Ácaro fitófago que se presenta en épocas secas en el haz de las hojas. Normalmente bajo control natural. Las poblaciones disminuyen con las lluvias.",
+    sintomas: ["Bronceado o plateado del haz de las hojas (raspaduras finas)", "Punteado clorótico en haz: puntos blanquecinos o amarillentos densamente distribuidos", "Tela de araña fina visible en el haz con lupa", "Ácaros rojos muy pequeños (0,4 mm) visibles con lupa en el haz", "Mayor incidencia en épocas secas y en cafetales a plena exposición"],
+    umbral: "Intervenir solo en focos con daño severo (más del 50% del haz afectado) cuando las lluvias no están próximas. Las poblaciones se autoregulan con la lluvia.",
+    control_bio: [{ nombre: "Conservación de depredadores", dosis: "Proteger coccinélidos (Stethorus sp., Harmonia sp., Cycloneda sanguinea). Evitar insecticidas de amplio espectro.", icon: "🐞" }],
+    control_quim: [{ nombre: "Spiromesifen (acaricida)", dosis: "1,5 cm³/L. Aplicar exclusivamente en árboles con daño severo en focos. No aplicar de forma generalizada.", icon: "⚗️" }],
+    control_cult: [{ nombre: "Sombrío regulado", dosis: "Cafetales con algo de sombra presentan menos problemas con arañita roja.", icon: "🌳" }, { nombre: "Riego en épocas secas", dosis: "Mantener humedad foliar reduce proliferación del ácaro.", icon: "💧" }],
+    fuentes: ["Cenicafé. Manejo integrado de plagas. cenicafe.org", "Benavides et al. (2013). Manual del Cafetero Colombiano Vol. 2."] },
+  { id: 15, nombre: "Nematodos del café", cientifico: "Meloidogyne spp. / Pratylenchus spp.", tipo: "nematodo", icon: "🔬", severidad: 3,
+    descripcion: "Microorganismos del suelo que atacan las raíces. Meloidogyne (nematodo del nudo radical) es la especie más importante. Difícil control una vez establecidos.",
+    sintomas: ["Plantas con síntomas de estrés hídrico o nutricional sin causa aparente", "Al examinar raíces: presencia de nudosidades o agallas en raíces (Meloidogyne)", "Raíces con pocas raíces laterales, deformadas, de color oscuro parcial", "Síntomas de mancha de hierro persistentes a pesar de tratamiento fúngico", "Reducción de altura y desarrollo de plántulas en almácigos"],
+    umbral: "En almácigo: revisar raíces antes del trasplante. En campo: intervenir preventivamente. Una vez infectadas, las plantas no se recuperan.",
+    control_bio: [{ nombre: "Paecilomyces lilacinus", dosis: "Aplicar en almácigos. Controla huevos de Meloidogyne. 2 g/L en inmersión de chapola antes de trasplante.", icon: "🍄" }, { nombre: "Beauveria bassiana / Metarhizium anisopliae", dosis: "Micos Plag®: 2 g/L. Inmersión de chapola o 50 mL/planta al sembrar en almácigo.", icon: "🍄" }, { nombre: "Micorrizas (Glomus / Entrophospora colombiana)", dosis: "10–20 g de inóculo (suelo + raíces) por planta al trasplantar. Protección preventiva comprobada.", icon: "🌱" }],
+    control_quim: [{ nombre: "Sin nematicidas recomendados actualmente", dosis: "Cenicafé indica que no hay nematicidas recomendados de uso curativo. El manejo es preventivo.", icon: "ℹ️" }],
+    control_cult: [{ nombre: "Almácigos en sustratos limpios", dosis: "Usar arena y gravilla lavadas. No usar suelo de cafetales viejos ni lotes infestados.", icon: "🏗️" }, { nombre: "Revisión de raíces pre-trasplante", dosis: "Examinar raíces de cada plántula antes de llevar al campo. No sembrar plantas con síntomas.", icon: "🔍" }, { nombre: "Rotación con cultivos no hospedantes", dosis: "Maíz en sitios de renovación mientras el suelo se recupera.", icon: "🌽" }],
+    fuentes: ["Cenicafé (2023). Manejo de enfermedades. cenicafe.org", "Leguizamón & Padilla (2001). Cenicafé 52(1):29-41."] },
+];
 
 function generarRecomendaciones(d) {
   const recs = [];
@@ -180,6 +306,28 @@ function generarRecomendaciones(d) {
   else if (d.puntajeSCA !== "" && sv >= 80 && sv < 84) add(2, "Calidad en taza", "Especialidad básico — hay margen de mejora",
     `Con ${d.puntajeSCA} puntos estás en especialidad básico. Las mejoras de manejo pueden mover el puntaje a 84-86, lo que significa +0,20 a +0,50 USD/lb adicionales.`,
     "Impacto directo en precio de venta");
+
+  const s_ph = semaforo("ph", d.ph);
+  if (s_ph === "alert" && parseFloat(d.ph) < 5.0) add(2, "Suelo", "Suelo muy ácido",
+    `Con pH ${d.ph} el suelo está por debajo del rango ideal (5,0-5,5). La acidez excesiva limita la disponibilidad de fósforo y puede liberar aluminio tóxico para la raíz.`,
+    "Impacto en nutrición y productividad");
+  else if (s_ph === "alert" && parseFloat(d.ph) > 5.5) add(2, "Suelo", "Suelo poco ácido para café",
+    `Con pH ${d.ph} el suelo está por encima del rango ideal. Puede reducir la disponibilidad de hierro, zinc y manganeso.`,
+    "Impacto en nutrición");
+
+  if (d.pctSombra === "0" || d.pctSombra === "sin") add(3, "Suelo y clima", "Cultivo a plena exposición sin sombra",
+    `Sin sombrío, el cafetal es más vulnerable a la sequía, estrés térmico y desgaste prematuro de la planta, especialmente en variedades tradicionales.`,
+    "Impacto en sostenibilidad y longevidad del cafetal");
+
+  if (Array.isArray(d.plagasObservadas) && d.plagasObservadas.length > 0) {
+    const altaSeveridad = d.plagasObservadas.filter(id => {
+      const p = PLAGAS.find(x => x.id === id);
+      return p && p.severidad >= 4;
+    });
+    if (altaSeveridad.length > 0) add(1, "Fitosanitario", "Plagas/enfermedades de alto impacto presentes",
+      `Marcaste ${altaSeveridad.map(id => PLAGAS.find(p => p.id === id).nombre).join(", ")}. Revisa la pestaña Plagas para ver umbral de acción y métodos de control recomendados por Cenicafé/FNC.`,
+      "Alto impacto económico potencial");
+  }
 
   if (recs.length === 0) add(0, "General", "✓ Indicadores en rango ideal",
     "Todos los datos introducidos están dentro de los rangos de referencia. Continúa con las prácticas actuales y documenta los procesos para garantizar consistencia entre cosechas.",
@@ -303,16 +451,86 @@ function TipBox({ titulo, texto }) {
   );
 }
 
+// ── CATÁLOGO DE PLAGAS: filtro + tarjetas expandibles con checklist ──────────
+const TIPOS_PLAGA = [
+  { id: "todas", label: "Todas", icon: "📋" },
+  { id: "insecto", label: "Insectos", icon: "🪲" },
+  { id: "hongo", label: "Enfermedades", icon: "🍄" },
+  { id: "nematodo", label: "Nematodos", icon: "🔬" },
+  { id: "ácaro", label: "Ácaros", icon: "🕷️" },
+];
+
+function TarjetaPlaga({ p, marcada, onToggle }) {
+  const [abierta, setAbierta] = useState(false);
+  return (
+    <div style={{ background: C.white, borderRadius: 12, marginBottom: 10, overflow: "hidden",
+      borderLeft: `4px solid ${marcada ? C.alert : C.clay}`, boxShadow: "0 2px 6px rgba(0,0,0,0.07)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 12, cursor: "pointer" }} onClick={() => setAbierta(a => !a)}>
+        <input type="checkbox" checked={marcada} onClick={e => e.stopPropagation()} onChange={() => onToggle(p.id)} style={{ width: 20, height: 20, flexShrink: 0 }} />
+        <span style={{ fontSize: 24 }}>{p.icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.earth }}>{p.nombre}</div>
+          <div style={{ fontSize: 10, color: C.bark, fontStyle: "italic" }}>{p.cientifico}</div>
+        </div>
+        <span style={{ fontSize: 12, color: C.bark }}>{abierta ? "▲" : "▼"}</span>
+      </div>
+      {abierta && (
+        <div style={{ padding: "0 14px 14px" }}>
+          <p style={{ fontSize: 12, color: C.roast, lineHeight: 1.55, marginBottom: 10 }}>{p.descripcion}</p>
+          <div style={{ fontSize: 11, fontWeight: 800, color: C.roast, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>🔍 Cómo reconocerla</div>
+          <ul style={{ margin: "0 0 10px", paddingLeft: 18, fontSize: 12, color: C.roast, lineHeight: 1.6 }}>
+            {p.sintomas.map((s, i) => <li key={i}>{s}</li>)}
+          </ul>
+          <div style={{ background: "#FFF8E8", border: `1px solid ${C.warn}`, borderRadius: 8, padding: 10, marginBottom: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#8A5A1E", marginBottom: 3 }}>UMBRAL DE ACCIÓN</div>
+            <div style={{ fontSize: 12, color: "#5a4010" }}>{p.umbral}</div>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: C.roast, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>🛡️ Control biológico/cultural recomendado</div>
+          {[...p.control_bio, ...p.control_cult].slice(0, 4).map((c, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 14, flexShrink: 0 }}>{c.icon}</span>
+              <div style={{ fontSize: 11, color: C.roast, lineHeight: 1.5 }}><b>{c.nombre}:</b> {c.dosis}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CatalogoPlagas({ seleccionadas, onToggle }) {
+  const [filtro, setFiltro] = useState("todas");
+  const filtradas = filtro === "todas" ? PLAGAS : PLAGAS.filter(p => p.tipo === filtro);
+  return (
+    <>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 2 }}>
+        {TIPOS_PLAGA.map(t => (
+          <button key={t.id} onClick={() => setFiltro(t.id)} style={{
+            flexShrink: 0, padding: "8px 12px", borderRadius: 20, border: `1.5px solid ${filtro === t.id ? C.roast : C.clay}`,
+            background: filtro === t.id ? C.roast : C.white, color: filtro === t.id ? C.cream : C.roast,
+            fontSize: 12, fontWeight: 700, cursor: "pointer",
+          }}>{t.icon} {t.label}</button>
+        ))}
+      </div>
+      {filtradas.map(p => (
+        <TarjetaPlaga key={p.id} p={p} marcada={seleccionadas.includes(p.id)} onToggle={onToggle} />
+      ))}
+    </>
+  );
+}
+
 // ── DESCARGA DE UN DIAGNÓSTICO COMO WORD (.docx generado en el navegador) ─────
 const INDICADORES_WORD = [
   ["altitud", "Altitud"], ["pctRojos", "% frutos rojos"], ["puntajeSCA", "Puntaje SCA"],
   ["fermentacion", "Fermentación"], ["relacionCereza", "Relación cereza:pergamino"],
   ["humedadPergamino", "Humedad pergamino"], ["hrAlmacen", "HR bodega"],
-  ["mermaTrilla", "Merma trilla"], ["pctPasilla", "% pasilla"],
+  ["mermaTrilla", "Merma trilla"], ["pctPasilla", "% pasilla"], ["ph", "pH del suelo"],
 ];
 
 async function descargarWordDiagnostico(d, code) {
   const recs = generarRecomendaciones(d);
+  let bm = null;
+  try { bm = await apiGet("/benchmark", code); } catch {}
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = window.docx;
   const W = { earth: "2C1810", roast: "5C3A21", bark: "8B5E3C", alert: "C0392B", warn: "D4851A", ok: "3A5C2A" };
   const colorPrioridad = p => p === 1 ? W.alert : p === 2 ? W.warn : W.ok;
@@ -338,6 +556,25 @@ async function descargarWordDiagnostico(d, code) {
     new Paragraph({ children: [ new TextRun({ text: r.texto, size: 20, color: W.roast }) ] }),
   ]);
 
+  const sueloTexto = [
+    d.tipoSuelo ? `Suelo ${d.tipoSuelo.toLowerCase()}` : "",
+    d.humedadSuelo ? `humedad habitual: ${d.humedadSuelo.toLowerCase()}` : "",
+    d.regimenLluvias ? `lluvias: ${d.regimenLluvias}` : "",
+    d.pctSombra !== "" && d.pctSombra !== undefined ? `sombra: ${d.pctSombra}%${d.especiesSombra ? " (" + d.especiesSombra + ")" : ""}` : "",
+  ].filter(Boolean).join(" · ");
+
+  const plagasNombres = (d.plagasObservadas || []).map(id => PLAGAS.find(p => p.id === id)?.nombre).filter(Boolean);
+
+  const precioFNC = bm?.precioFNCPorKilogramo || 23768;
+  const kgBase = parseFloat(d.kgPergaminoCosecha) > 0 ? parseFloat(d.kgPergaminoCosecha) : 100;
+  const pctPas = parseFloat(d.pctPasilla) || 0;
+  const pctPrecioPas = parseFloat(d.pctPrecioPasilla) || 0;
+  const ingresoIdeal = kgBase * precioFNC;
+  const ingresoReal = kgBase * (1 - pctPas / 100) * precioFNC + kgBase * (pctPas / 100) * precioFNC * (pctPrecioPas / 100);
+  const mermaCOP = ingresoIdeal - ingresoReal;
+  const mermaPct = ingresoIdeal > 0 ? (mermaCOP / ingresoIdeal * 100) : 0;
+  const fmtCOPw = n => "$" + Math.round(n).toLocaleString("es-CO");
+
   const doc = new Document({ sections: [{ children: [
     new Paragraph({ heading: HeadingLevel.HEADING_1, children: [ new TextRun({ text: `Diagnóstico de Finca #${d.numero}${d.nombre ? " — " + d.nombre : ""}` }) ] }),
     new Paragraph({ children: [ new TextRun({ text: `Código: ${code}${d.vereda ? " · " + d.vereda : ""}${d.altitud ? " · " + d.altitud + " msnm" : ""}`, color: W.bark, size: 20 }) ] }),
@@ -346,8 +583,20 @@ async function descargarWordDiagnostico(d, code) {
     new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Indicadores" }) ] }),
     ...INDICADORES_WORD.map(([campo, label]) => filaIndicador(label, campo)),
     new Paragraph({ text: "" }),
+    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Suelo y clima" }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: sueloTexto || "Sin datos de suelo/clima registrados", size: 20, color: W.roast }) ] }),
+    new Paragraph({ text: "" }),
+    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Plagas y enfermedades observadas" }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: plagasNombres.length > 0 ? plagasNombres.join(", ") : "Ninguna marcada", size: 20, color: W.roast }) ] }),
+    ...(d.notasFitosanitarias ? [new Paragraph({ children: [ new TextRun({ text: d.notasFitosanitarias, size: 18, color: W.bark }) ] })] : []),
+    new Paragraph({ text: "" }),
     new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Áreas de mejora detectadas" }) ] }),
     ...recParrafos,
+    new Paragraph({ text: "" }),
+    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Simulación económica de mermas" }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: `Ingreso si todo fuera primera (precio FNC ref.): ${fmtCOPw(ingresoIdeal)}`, size: 20, color: W.earth }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: `Ingreso real estimado: ${fmtCOPw(ingresoReal)}`, size: 20, color: W.earth }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: `Merma económica por pasilla: ${fmtCOPw(mermaCOP)} (${mermaPct.toFixed(1)}%)`, bold: true, size: 22, color: W.alert }) ] }),
     new Paragraph({ text: "" }),
     new Paragraph({ children: [ new TextRun({ text: "Referencias: Cenicafé · Federación Nacional de Cafeteros · SCA", size: 16, color: W.bark }) ] }),
   ] }] });
@@ -462,11 +711,14 @@ function Login({ onLogin }) {
 }
 
 // ── APP ───────────────────────────────────────────────────────────────────────
-const SECCIONES = ["Finca", "Cosecha", "Beneficio", "Secado", "Trilla", "Diagnóstico"];
+const SECCIONES = ["Finca", "Cosecha", "Beneficio", "Secado", "Trilla", "Suelo y Clima", "Plagas", "Diagnóstico"];
 const ESTADO = {
   nombre: "", vereda: "", altitud: "", variedad: "", hectareas: "",
   pctRojos: "", puntajeSCA: "", fermentacion: "", relacionCereza: "",
   humedadPergamino: "", hrAlmacen: "", mermaTrilla: "", pctPasilla: "",
+  tipoSuelo: "", ph: "", humedadSuelo: "", regimenLluvias: "", pctSombra: "", especiesSombra: "",
+  plagasObservadas: [], notasFitosanitarias: "",
+  kgPergaminoCosecha: "", pctPrecioPasilla: "30",
 };
 
 function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
@@ -474,7 +726,13 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
   const [datos, setDatos] = useState({ ...ESTADO, ...entrada });
   const [guardando, setGuardando] = useState(false);
   const set = useCallback((name, val) => setDatos(d => ({ ...d, [name]: val })), []);
+  const togglePlaga = useCallback((id) => setDatos(d => ({
+    ...d, plagasObservadas: d.plagasObservadas.includes(id) ? d.plagasObservadas.filter(x => x !== id) : [...d.plagasObservadas, id],
+  })), []);
   const progreso = (paso / (SECCIONES.length - 1)) * 100;
+
+  const [bm, setBm] = useState(null);
+  useEffect(() => { apiGet("/benchmark", code).then(setBm).catch(() => {}); }, [code]);
 
   // Autoguardado: cada cambio de dato se sincroniza con este diagnóstico concreto
   const saveTimer = useRef(null);
@@ -503,6 +761,21 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
     {valor:"8",label:"8%"},{valor:"9",label:"9%"},{valor:"10",label:"10%"},
     {valor:"11",label:"11%"},{valor:"12",label:"12%"},{valor:"13",label:"13%"},
     {valor:"15",label:"15%"},{valor:"18",label:"+18%"},
+  ];
+  const opcTipoSuelo = [
+    {valor:"Arcilloso",label:"Arcilloso"},{valor:"Franco",label:"Franco"},
+    {valor:"Franco-arcilloso",label:"Franco-arcilloso"},{valor:"Franco-arenoso",label:"Franco-arenoso"},
+    {valor:"Arenoso",label:"Arenoso"},{valor:"No sé",label:"No sé"},
+  ];
+  const opcHumedadSuelo = [
+    {valor:"Seco",label:"☀️ Seco"},{valor:"Húmedo",label:"💧 Húmedo"},{valor:"Encharcado",label:"🌊 Encharcado"},
+  ];
+  const opcRegimenLluvias = [
+    {valor:"Bimodal",label:"Bimodal (2 temporadas)"},{valor:"Monomodal",label:"Monomodal (1 temporada)"},{valor:"No estoy seguro",label:"No estoy seguro"},
+  ];
+  const opcSombra = [
+    {valor:"0",label:"Sin sombra (0%)"},{valor:"20",label:"Rala (10-20%)"},
+    {valor:"30",label:"Media (20-40%)"},{valor:"50",label:"Densa (+40%)"},
   ];
 
   return (
@@ -623,8 +896,43 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           </div>
         </>}
 
-        {/* ── PASO 5: DIAGNÓSTICO ── */}
+        {/* ── PASO 5: SUELO Y CLIMA ── */}
         {paso === 5 && <>
+          <SeccionHeader numero="6" titulo="Suelo y clima" subtitulo="Las condiciones de suelo y clima de esta variedad influyen en nutrición, sanidad y calidad final" />
+          <SelectorBotones label="Tipo de suelo" name="tipoSuelo" value={datos.tipoSuelo} onChange={set}
+            opciones={opcTipoSuelo}
+            ayuda="Si tienes un análisis de suelo reciente, usa ese dato. Si no, una estimación a ojo/tacto sirve." />
+          <Campo label="pH del suelo (si lo conoces)" name="ph" value={datos.ph} onChange={set}
+            inputMode="decimal" placeholder="Ej. 5.2" min={3.5} max={8} step="0.1"
+            ayuda="Dato de análisis de suelo del ICA, Cenicafé o tu cooperativa. El café prefiere suelos ligeramente ácidos (5,0-5,5)." />
+          <SelectorBotones label="Humedad del suelo (situación habitual)" name="humedadSuelo" value={datos.humedadSuelo} onChange={set} opciones={opcHumedadSuelo} />
+          <SelectorBotones label="Régimen de lluvias de la zona" name="regimenLluvias" value={datos.regimenLluvias} onChange={set} opciones={opcRegimenLluvias} />
+          <SelectorBotones label="% de sombra sobre el cafetal" name="pctSombra" value={datos.pctSombra} onChange={set}
+            opciones={opcSombra}
+            ayuda="Estima qué porcentaje del cafetal queda cubierto por árboles de sombra al mediodía." />
+          <Campo label="Especies de sombra (opcional)" name="especiesSombra" value={datos.especiesSombra} onChange={set}
+            tipo="text" inputMode="text" placeholder="Ej. Guamo, Nogal, Cedro" />
+          {datos.ph && (
+            <div style={{ background: C.fog, borderRadius: 12, padding: 14, marginTop: 4 }}>
+              <IndicadorBar label="pH del suelo" valor={datos.ph} campo="ph" />
+            </div>
+          )}
+        </>}
+
+        {/* ── PASO 6: PLAGAS Y ENFERMEDADES ── */}
+        {paso === 6 && <>
+          <SeccionHeader numero="7" titulo="Plagas y enfermedades" subtitulo="Marca lo que has observado en esta cosecha. Toca cada tarjeta para ver síntomas, umbral de acción y control recomendado (Cenicafé/FNC)." />
+          <CatalogoPlagas seleccionadas={datos.plagasObservadas} onToggle={togglePlaga} />
+          <div style={{ marginTop: 16 }}>
+            <label style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.earth, marginBottom: 5 }}>Notas adicionales (opcional)</label>
+            <textarea value={datos.notasFitosanitarias} onChange={e => set("notasFitosanitarias", e.target.value)} rows={3}
+              placeholder="Ej. La roya apareció solo en el lote de abajo, cerca de la quebrada"
+              style={{ width: "100%", padding: "13px 16px", border: `2px solid ${C.clay}`, borderRadius: 10, fontSize: 14, background: C.white, color: C.earth, outline: "none", resize: "vertical", fontFamily: "inherit" }} />
+          </div>
+        </>}
+
+        {/* ── PASO 7: DIAGNÓSTICO ── */}
+        {paso === 7 && <>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>🌿</div>
             <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: C.earth }}>{datos.nombre || "Tu finca"}</h2>
@@ -649,7 +957,33 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
             <IndicadorBar label="HR bodega" valor={datos.hrAlmacen} campo="hrAlmacen" />
             <IndicadorBar label="Merma trilla" valor={datos.mermaTrilla} campo="mermaTrilla" />
             <IndicadorBar label="% pasilla" valor={datos.pctPasilla} campo="pctPasilla" />
+            {datos.ph !== "" && <IndicadorBar label="pH del suelo" valor={datos.ph} campo="ph" />}
           </div>
+
+          {(datos.tipoSuelo || datos.pctSombra || datos.regimenLluvias) && (
+            <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 24 }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>🌱 Suelo y clima</h3>
+              <div style={{ fontSize: 13, color: C.roast, lineHeight: 1.7 }}>
+                {datos.tipoSuelo && <div>Suelo {datos.tipoSuelo.toLowerCase()}{datos.humedadSuelo ? `, habitualmente ${datos.humedadSuelo.toLowerCase()}` : ""}</div>}
+                {datos.regimenLluvias && <div>Régimen de lluvias: {datos.regimenLluvias}</div>}
+                {datos.pctSombra !== "" && <div>Sombra: {opcSombra.find(o => o.valor === datos.pctSombra)?.label || datos.pctSombra + "%"}{datos.especiesSombra ? ` (${datos.especiesSombra})` : ""}</div>}
+              </div>
+            </div>
+          )}
+
+          {datos.plagasObservadas.length > 0 && (
+            <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 24 }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>🌿 Fitosanitario observado</h3>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {datos.plagasObservadas.map(id => {
+                  const p = PLAGAS.find(x => x.id === id);
+                  if (!p) return null;
+                  return <span key={id} style={{ fontSize: 11, fontWeight: 700, color: C.roast, background: C.fog, borderRadius: 8, padding: "3px 9px" }}>{p.icon} {p.nombre}</span>;
+                })}
+              </div>
+              {datos.notasFitosanitarias && <p style={{ fontSize: 12, color: C.bark, marginTop: 8, lineHeight: 1.5 }}>{datos.notasFitosanitarias}</p>}
+            </div>
+          )}
 
           {/* Recomendaciones */}
           <h3 style={{ margin: "0 0 14px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -668,6 +1002,57 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
               </div>
             </div>
           ))}
+
+          {/* Simulación económica */}
+          <h3 style={{ margin: "24px 0 14px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>
+            💰 Simulación económica de mermas
+          </h3>
+          <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 16 }}>
+            <p style={{ fontSize: 12, color: C.bark, lineHeight: 1.55, marginBottom: 14 }}>
+              Estima cuánto te cuesta la pasilla de esta cosecha frente a vender todo a precio estándar. Ajusta los supuestos si los conoces.
+            </p>
+            <Campo label="Kg de pergamino de esta cosecha (opcional)" name="kgPergaminoCosecha" value={datos.kgPergaminoCosecha} onChange={set}
+              inputMode="decimal" placeholder="Si lo dejas vacío, se simula sobre 100 kg" min={0} max={50000} step="1" />
+            <Campo label="% del precio estándar que recibes por la pasilla" name="pctPrecioPasilla" value={datos.pctPrecioPasilla} onChange={set}
+              inputMode="numeric" placeholder="Ej. 30" min={0} max={100} step="5"
+              ayuda="La pasilla casi siempre se vende mucho más barata que el café de primera, o se autoconsume. Ajusta según lo que te pagan a ti." />
+            {(() => {
+              const precioFNC = bm?.precioFNCPorKilogramo || 23768;
+              const kgBase = parseFloat(datos.kgPergaminoCosecha) > 0 ? parseFloat(datos.kgPergaminoCosecha) : 100;
+              const pctPas = parseFloat(datos.pctPasilla) || 0;
+              const pctPrecioPas = parseFloat(datos.pctPrecioPasilla) || 0;
+              const kgPrimera = kgBase * (1 - pctPas / 100);
+              const kgPasilla = kgBase * (pctPas / 100);
+              const ingresoIdeal = kgBase * precioFNC;
+              const ingresoReal = kgPrimera * precioFNC + kgPasilla * precioFNC * (pctPrecioPas / 100);
+              const mermaCOP = ingresoIdeal - ingresoReal;
+              const mermaPct = ingresoIdeal > 0 ? (mermaCOP / ingresoIdeal * 100) : 0;
+              const fmtCOP = n => "$" + Math.round(n).toLocaleString("es-CO");
+              return (
+                <div style={{ background: C.fog, borderRadius: 12, padding: 14, marginTop: 6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${C.clay}` }}>
+                    <span style={{ fontSize: 12, color: C.earth }}>Ingreso si todo fuera primera (precio FNC ref.)</span>
+                    <strong style={{ fontSize: 13, color: C.earth }}>{fmtCOP(ingresoIdeal)}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${C.clay}` }}>
+                    <span style={{ fontSize: 12, color: C.earth }}>Ingreso real estimado ({fmt0(kgPrimera)} kg primera + {fmt0(kgPasilla)} kg pasilla)</span>
+                    <strong style={{ fontSize: 13, color: C.earth }}>{fmtCOP(ingresoReal)}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 2px" }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: C.alert }}>Merma económica por pasilla</span>
+                    <strong style={{ fontSize: 15, fontWeight: 900, color: C.alert }}>{fmtCOP(mermaCOP)} ({mermaPct.toFixed(1)}%)</strong>
+                  </div>
+                </div>
+              );
+            })()}
+            {datos.puntajeSCA !== "" && parseFloat(datos.puntajeSCA) >= 80 && (
+              <div style={{ background: "#E8F5E8", borderRadius: 10, padding: 12, marginTop: 12 }}>
+                <p style={{ fontSize: 12, color: C.leaf, lineHeight: 1.55 }}>
+                  ☕ Con {datos.puntajeSCA} puntos SCA tu café califica como especialidad. Referencialmente, cada punto por encima de 80 puede representar entre +0,20 y +0,50 USD/lb adicionales frente al precio convencional (FNC/SCA, referencia de mercado, varía según comprador y momento).
+                </p>
+              </div>
+            )}
+          </div>
 
           <div style={{ background: C.earth, borderRadius: 14, padding: 16, marginTop: 24, textAlign: "center" }}>
             <div style={{ fontSize: 11, color: C.clay, marginBottom: 4, fontWeight: 700 }}>Referencias técnicas</div>

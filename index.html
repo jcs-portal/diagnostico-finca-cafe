@@ -14,6 +14,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://unpkg.com/docx@9.7.1/dist/index.umd.cjs"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; overscroll-behavior: none; }
@@ -74,6 +75,15 @@ async function apiPut(ruta, code, body) {
 }
 async function apiDelete(ruta, code) {
   const r = await fetch(API_BASE + ruta, { method: "DELETE", headers: { "X-Code": code } });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Error de conexión");
+  return r.json();
+}
+async function apiPost(ruta, code, body) {
+  const r = await fetch(API_BASE + ruta, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Code": code },
+    body: JSON.stringify(body || {})
+  });
   if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Error de conexión");
   return r.json();
 }
@@ -293,6 +303,118 @@ function TipBox({ titulo, texto }) {
   );
 }
 
+// ── DESCARGA DE UN DIAGNÓSTICO COMO WORD (.docx generado en el navegador) ─────
+const INDICADORES_WORD = [
+  ["altitud", "Altitud"], ["pctRojos", "% frutos rojos"], ["puntajeSCA", "Puntaje SCA"],
+  ["fermentacion", "Fermentación"], ["relacionCereza", "Relación cereza:pergamino"],
+  ["humedadPergamino", "Humedad pergamino"], ["hrAlmacen", "HR bodega"],
+  ["mermaTrilla", "Merma trilla"], ["pctPasilla", "% pasilla"],
+];
+
+async function descargarWordDiagnostico(d, code) {
+  const recs = generarRecomendaciones(d);
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = window.docx;
+  const W = { earth: "2C1810", roast: "5C3A21", bark: "8B5E3C", alert: "C0392B", warn: "D4851A", ok: "3A5C2A" };
+  const colorPrioridad = p => p === 1 ? W.alert : p === 2 ? W.warn : W.ok;
+  const textoPrioridad = p => p === 1 ? "Prioridad alta" : p === 2 ? "Prioridad media" : "Mantener";
+
+  const filaIndicador = (label, campo) => {
+    const valor = d[campo];
+    const r = REF[campo];
+    const texto = (valor !== "" && valor !== undefined && valor !== null) ? `${valor} ${r?.unidad || ""}` : "Sin dato";
+    const ideal = r ? `  (ideal: ${r.ideal[0]}–${r.ideal[1]} ${r.unidad})` : "";
+    return new Paragraph({ spacing: { after: 60 }, children: [
+      new TextRun({ text: label + ": ", bold: true, color: W.roast, size: 20 }),
+      new TextRun({ text: texto, size: 20, color: W.earth }),
+      new TextRun({ text: ideal, size: 16, color: W.bark }),
+    ] });
+  };
+
+  const recParrafos = recs.flatMap(r => [
+    new Paragraph({ spacing: { before: 160, after: 40 }, children: [
+      new TextRun({ text: `${textoPrioridad(r.prioridad)} · ${r.area}`, bold: true, color: colorPrioridad(r.prioridad), size: 18 }),
+    ] }),
+    new Paragraph({ spacing: { after: 30 }, children: [ new TextRun({ text: r.titulo, bold: true, size: 22, color: W.earth }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: r.texto, size: 20, color: W.roast }) ] }),
+  ]);
+
+  const doc = new Document({ sections: [{ children: [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [ new TextRun({ text: `Diagnóstico de Finca #${d.numero}${d.nombre ? " — " + d.nombre : ""}` }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: `Código: ${code}${d.vereda ? " · " + d.vereda : ""}${d.altitud ? " · " + d.altitud + " msnm" : ""}`, color: W.bark, size: 20 }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: `Actualizado: ${d.actualizadoEn || "—"}`, color: W.bark, size: 18 }) ] }),
+    new Paragraph({ text: "" }),
+    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Indicadores" }) ] }),
+    ...INDICADORES_WORD.map(([campo, label]) => filaIndicador(label, campo)),
+    new Paragraph({ text: "" }),
+    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Áreas de mejora detectadas" }) ] }),
+    ...recParrafos,
+    new Paragraph({ text: "" }),
+    new Paragraph({ children: [ new TextRun({ text: "Referencias: Cenicafé · Federación Nacional de Cafeteros · SCA", size: 16, color: W.bark }) ] }),
+  ] }] });
+
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `diagnostico-${code}-${d.numero}.docx`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── LISTA DE DIAGNÓSTICOS (un código puede tener varios) ─────────────────────
+function ListaDiagnosticos({ code, diagnosticos, onNuevo, onAbrir, onBorrar, onBorrarTodos, onLogout }) {
+  const ordenados = [...diagnosticos].sort((a, b) => (b.numero || 0) - (a.numero || 0));
+  return (
+    <div style={{ minHeight: "100vh", background: C.cream, maxWidth: 480, margin: "0 auto" }}>
+      <div className="header-safe" style={{ background: C.earth, paddingLeft: 20, paddingRight: 20, paddingBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 4 }}>
+          <span style={{ fontSize: 24 }}>☕</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: C.clay, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>Ubuntu Café · San Adolfo, Huila</div>
+            <div style={{ fontSize: 16, color: C.cream, fontWeight: 900 }}>Mis Diagnósticos</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 11, color: C.cream, fontWeight: 800, background: "#4A2A14", borderRadius: 6, padding: "3px 8px" }}>{code}</div>
+            <span onClick={onLogout} style={{ fontSize: 9, color: "#8B6B5A", textDecoration: "underline", cursor: "pointer" }}>Cambiar código</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="scroll-area seccion" style={{ padding: "20px 20px 100px" }}>
+        <button onClick={onNuevo} style={{
+          width: "100%", marginBottom: 16, borderRadius: 12, border: `2px dashed ${C.clay}`,
+          background: "transparent", color: C.roast, fontSize: 15, fontWeight: 800, padding: "14px 0", cursor: "pointer",
+        }}>+ Nuevo diagnóstico</button>
+
+        {ordenados.length === 0 ? (
+          <div style={{ background: C.fog, borderRadius: 12, padding: 20, textAlign: "center", color: C.bark, fontSize: 13 }}>
+            Aún no has hecho ningún diagnóstico. Pulsa "+ Nuevo diagnóstico" para empezar.
+          </div>
+        ) : ordenados.map(d => (
+          <div key={d.id} style={{ background: C.white, borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: "0 2px 6px rgba(0,0,0,0.08)" }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: C.earth }}>Diagnóstico #{d.numero}{d.nombre ? " — " + d.nombre : ""}</div>
+            <div style={{ fontSize: 11, color: C.bark, marginTop: 2 }}>
+              {d.actualizadoEn ? `Actualizado ${d.actualizadoEn}` : "Sin completar todavía"}
+              {d.pctRojos !== "" && d.pctRojos !== undefined ? ` · ${d.pctRojos}% rojos` : ""}
+              {d.puntajeSCA !== "" && d.puntajeSCA !== undefined ? ` · SCA ${d.puntajeSCA}` : ""}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button onClick={() => onAbrir(d.id)} style={{ flex: 1, borderRadius: 8, border: "none", background: C.roast, color: C.cream, fontWeight: 800, fontSize: 12, padding: "10px 0", cursor: "pointer" }}>✎ Ver / Editar</button>
+              <button onClick={() => descargarWordDiagnostico(d, code)} style={{ flex: 1, borderRadius: 8, border: `1.5px solid ${C.leaf}`, background: "transparent", color: C.leaf, fontWeight: 800, fontSize: 12, padding: "10px 0", cursor: "pointer" }}>📄 Word</button>
+              <button onClick={() => onBorrar(d.id)} style={{ borderRadius: 8, border: `1.5px solid ${C.alert}`, background: "transparent", color: C.alert, fontWeight: 800, fontSize: 12, padding: "10px 14px", cursor: "pointer" }}>🗑</button>
+            </div>
+          </div>
+        ))}
+
+        {ordenados.length > 0 && (
+          <button onClick={onBorrarTodos} style={{
+            width: "100%", marginTop: 8, borderRadius: 12, border: `1.5px solid ${C.alert}`, padding: "12px 0",
+            background: "transparent", color: C.alert, fontSize: 13, fontWeight: 800, cursor: "pointer",
+          }}>🗑 Borrar todos mis diagnósticos</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── LOGIN (mismo código de finanzas-cafeteros) ────────────────────────────────
 function Login({ onLogin }) {
   const [codigo, setCodigo] = useState("");
@@ -347,43 +469,26 @@ const ESTADO = {
   humedadPergamino: "", hrAlmacen: "", mermaTrilla: "", pctPasilla: "",
 };
 
-function Diagnostico({ code, onLogout }) {
+function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
   const [paso, setPaso] = useState(0);
-  const [datos, setDatos] = useState(ESTADO);
-  const [cargado, setCargado] = useState(false);
+  const [datos, setDatos] = useState({ ...ESTADO, ...entrada });
   const [guardando, setGuardando] = useState(false);
   const set = useCallback((name, val) => setDatos(d => ({ ...d, [name]: val })), []);
   const progreso = (paso / (SECCIONES.length - 1)) * 100;
 
-  // Cargar diagnóstico previamente guardado (si lo hay) al entrar
-  useEffect(() => {
-    apiGet("/diagnostico", code)
-      .then(d => setDatos(prev => ({ ...ESTADO, ...d })))
-      .catch(() => {})
-      .finally(() => setCargado(true));
-  }, [code]);
-
-  // Autoguardado: cada cambio de dato se sincroniza con el servidor
+  // Autoguardado: cada cambio de dato se sincroniza con este diagnóstico concreto
   const saveTimer = useRef(null);
   useEffect(() => {
-    if (!cargado) return; // no guardar hasta haber cargado lo existente
     setGuardando(true);
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      apiPut("/diagnostico", code, datos).catch(() => {}).finally(() => setGuardando(false));
+      apiPut(`/diagnostico/${entrada.id}`, code, datos).catch(() => {}).finally(() => setGuardando(false));
     }, 700);
     return () => clearTimeout(saveTimer.current);
-  }, [datos, cargado, code]);
+  }, [datos, code, entrada.id]);
   const recs = generarRecomendaciones(datos);
   const prioridadColor = p => p === 1 ? C.alert : p === 2 ? C.warn : C.ok;
   const prioridadLabel = p => p === 1 ? "🔴 Prioridad alta" : p === 2 ? "🟡 Prioridad media" : "🟢 Mantener";
-
-  const borrarMisDatos = useCallback(async () => {
-    if (!window.confirm("¿Seguro que quieres borrar tu diagnóstico por completo? Esta acción no se puede deshacer.")) return;
-    try { await apiDelete("/diagnostico", code); } catch (e) { /* aunque falle el borrado en servidor, limpiamos localmente */ }
-    setDatos(ESTADO);
-    setPaso(0);
-  }, [code]);
 
   const opcRojos = [
     {valor:"70",label:"~70%"},{valor:"80",label:"~80%"},{valor:"85",label:"~85%"},
@@ -409,12 +514,12 @@ function Diagnostico({ code, onLogout }) {
           <span style={{ fontSize: 24 }}>☕</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 10, color: C.clay, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>Ubuntu Café · San Adolfo, Huila</div>
-            <div style={{ fontSize: 16, color: C.cream, fontWeight: 900 }}>Diagnóstico de Finca</div>
+            <div style={{ fontSize: 16, color: C.cream, fontWeight: 900 }}>Diagnóstico #{entrada.numero}</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 11, color: C.cream, fontWeight: 800, background: "#4A2A14", borderRadius: 6, padding: "3px 8px" }}>{code}</div>
             <div style={{ fontSize: 9, color: C.clay, marginTop: 3 }}>{guardando ? "Guardando…" : "✓ Guardado"}</div>
-            <span onClick={onLogout} style={{ fontSize: 9, color: "#8B6B5A", textDecoration: "underline", cursor: "pointer" }}>Cambiar código</span>
+            <span onClick={onVolver} style={{ fontSize: 9, color: "#8B6B5A", textDecoration: "underline", cursor: "pointer" }}>← Mis diagnósticos</span>
           </div>
         </div>
         {/* Barra de progreso */}
@@ -571,10 +676,10 @@ function Diagnostico({ code, onLogout }) {
             </div>
           </div>
 
-          <button onClick={borrarMisDatos} style={{
-            width: "100%", marginTop: 16, borderRadius: 12, border: `1.5px solid ${C.alert}`, padding: "12px 0",
-            background: "transparent", color: C.alert, fontSize: 13, fontWeight: 800, cursor: "pointer",
-          }}>🗑 Borrar mi diagnóstico</button>
+          <button onClick={() => descargarWordDiagnostico(datos, code)} style={{
+            width: "100%", marginTop: 16, borderRadius: 12, border: `1.5px solid ${C.leaf}`, padding: "12px 0",
+            background: "transparent", color: C.leaf, fontSize: 13, fontWeight: 800, cursor: "pointer",
+          }}>📄 Descargar este diagnóstico en Word</button>
         </>}
       </div>
 
@@ -603,15 +708,68 @@ function Diagnostico({ code, onLogout }) {
             {paso === SECCIONES.length - 2 ? "Ver diagnóstico →" : "Continuar →"}
           </button>
         ) : (
-          <button onClick={() => { setDatos(ESTADO); setPaso(0); }} style={{
+          <button onClick={onVolver} style={{
             flex: 2, borderRadius: 12, border: "none",
             background: C.leaf, color: C.cream,
             fontSize: 15, fontWeight: 900, cursor: "pointer",
-          }}>Nueva finca ↺</button>
+          }}>✓ Volver a mis diagnósticos</button>
         )}
       </div>
     </div>
   );
+}
+
+// ── CONTENEDOR: gestiona la lista de diagnósticos de este código y la navegación
+// entre la lista y el formulario de un diagnóstico concreto ──────────────────
+function Contenedor({ code, onLogout }) {
+  const [diagnosticos, setDiagnosticos] = useState([]);
+  const [cargado, setCargado] = useState(false);
+  const [idActivo, setIdActivo] = useState(null);
+
+  const cargar = useCallback(() => {
+    apiGet("/diagnostico", code)
+      .then(d => setDiagnosticos(d?.diagnosticos || []))
+      .catch(() => setDiagnosticos([]))
+      .finally(() => setCargado(true));
+  }, [code]);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const nuevoDiagnostico = useCallback(async () => {
+    try {
+      const nuevo = await apiPost("/diagnostico", code, {});
+      setDiagnosticos(d => [...d, nuevo]);
+      setIdActivo(nuevo.id);
+    } catch (e) { /* el toast de error ya lo muestra apiPost vía throw; aquí no hay toast global */ }
+  }, [code]);
+
+  const abrir = useCallback((id) => setIdActivo(id), []);
+  const volver = useCallback(() => { setIdActivo(null); cargar(); }, [cargar]);
+
+  const borrar = useCallback(async (id) => {
+    if (!window.confirm("¿Borrar este diagnóstico? Esta acción no se puede deshacer.")) return;
+    await apiDelete(`/diagnostico/${id}`, code).catch(() => {});
+    cargar();
+  }, [code, cargar]);
+
+  const borrarTodos = useCallback(async () => {
+    if (!window.confirm("¿Borrar TODOS tus diagnósticos? Esta acción no se puede deshacer.")) return;
+    await apiDelete("/diagnostico", code).catch(() => {});
+    cargar();
+  }, [code, cargar]);
+
+  if (!cargado) {
+    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.bark }}>Cargando…</div>;
+  }
+
+  if (idActivo) {
+    const entrada = diagnosticos.find(d => d.id === idActivo);
+    if (!entrada) { setIdActivo(null); return null; }
+    return <DiagnosticoWizard code={code} entrada={entrada} onVolver={volver} />;
+  }
+
+  return <ListaDiagnosticos code={code} diagnosticos={diagnosticos}
+    onNuevo={nuevoDiagnostico} onAbrir={abrir} onBorrar={borrar} onBorrarTodos={borrarTodos} onLogout={onLogout} />;
 }
 
 // ── APP raíz: gestiona el código guardado en este dispositivo ────────────────
@@ -621,7 +779,7 @@ function App() {
   const onLogin = (c) => { localStorage.setItem("dfc_code", c); setCode(c); };
   const onLogout = () => { localStorage.removeItem("dfc_code"); setCode(""); };
 
-  return code ? <Diagnostico code={code} onLogout={onLogout} /> : <Login onLogin={onLogin} />;
+  return code ? <Contenedor code={code} onLogout={onLogout} /> : <Login onLogin={onLogin} />;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);

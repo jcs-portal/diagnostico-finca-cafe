@@ -109,8 +109,13 @@ const REF = {
   relacionCereza:   { ideal: [4.5, 5.5],   unidad: ":1",    fuente: "Cenicafé" },
   mermaTrilla:      { ideal: [17, 20],     unidad: "%",     fuente: "FNC" },
   pctPasilla:       { ideal: [0, 8],       unidad: "%",     fuente: "Cenicafé" },
+  factorRendimiento:{ ideal: [80, 83],     unidad: "%",     fuente: "FNC/Cenicafé" },
   hrAlmacen:        { ideal: [60, 70],     unidad: "%HR",   fuente: "Cenicafé" },
   ph:               { ideal: [5.0, 5.5],   unidad: "pH",    fuente: "Cenicafé" },
+  temperaturaPromedio: { ideal: [18, 22],  unidad: "°C",    fuente: "Cenicafé" },
+  precipitacionAnual:  { ideal: [1500, 3000], unidad: "mm/año", fuente: "Cenicafé" },
+  mesesSecos:          { ideal: [0, 4],    unidad: "meses", fuente: "Cenicafé" },
+  hrAmbiente:          { ideal: [60, 70],  unidad: "%HR",   fuente: "Cenicafé" },
 };
 
 function semaforo(campo, valor) {
@@ -254,6 +259,74 @@ const PLAGAS = [
     fuentes: ["Cenicafé (2023). Manejo de enfermedades. cenicafe.org", "Leguizamón & Padilla (2001). Cenicafé 52(1):29-41."] },
 ];
 
+// ── Catálogo de defectos físicos del grano (estándar SCA, simplificado para autodiagnóstico) ──
+// El catador profesional distingue ~20 categorías de defectos (Cenicafé/SCA Green Coffee Defect
+// Guide); aquí se agrupan en las 8 visuales más frecuentes para que un caficultor sin formación
+// en catación pueda identificarlas a simple vista en su muestra de trilla.
+const DEFECTOS_GRANO = [
+  { id: 1, nombre: "Grano negro", grado: 1, icon: "⚫",
+    descripcionVisual: "Grano oscurecido por completo, a veces arrugado.",
+    causa: "Sobrefermentación del baboso, o frutos caídos al suelo que fermentaron antes de la cosecha.",
+    consecuencia: "Descalifica la muestra para café especial (SCA exige cero defectos Grado 1)." },
+  { id: 2, nombre: "Grano agrio (vinagre)", grado: 1, icon: "🟤",
+    descripcionVisual: "Color marrón claro, con olor a vinagre o fermento al acercar la nariz.",
+    causa: "Fermentación descontrolada (demasiadas horas) o mezcla con frutos sobremaduros en la cosecha.",
+    consecuencia: "Descalifica la muestra para café especial." },
+  { id: 3, nombre: "Cardenillo", grado: 1, icon: "🟢",
+    descripcionVisual: "Manchas verde-azuladas o blanquecinas de hongo sobre la superficie del grano.",
+    causa: "Almacenamiento en bodega húmeda (HR > 75%) o secado insuficiente (humedad > 12%).",
+    consecuencia: "Descalifica la muestra para café especial; puede dar sabores a moho en taza." },
+  { id: 4, nombre: "Partido / cortado", grado: 2, icon: "✂️",
+    descripcionVisual: "Grano roto o con un corte limpio en uno de los extremos.",
+    causa: "Despulpadora o trilladora mal calibrada para el tamaño del grano.",
+    consecuencia: "Penaliza (Grado 2): máximo 5 defectos Grado 2 permitidos por cada 300 g en café especial." },
+  { id: 5, nombre: "Inmaduro / verde", grado: 2, icon: "🟩",
+    descripcionVisual: "Grano pequeño, verde pálido y duro al partirlo.",
+    causa: "Cosecha de frutos que aún no estaban en punto de madurez (no completamente rojos).",
+    consecuencia: "Penaliza (Grado 2) y además da sabores astringentes/herbáceos en taza." },
+  { id: 6, nombre: "Brocado", grado: 2, icon: "🕳️",
+    descripcionVisual: "Una o varias perforaciones pequeñas y circulares en la superficie del grano.",
+    causa: "Ataque de broca del café (Hypothenemus hampei) durante el desarrollo del fruto.",
+    consecuencia: "Penaliza (Grado 2); revisar umbral de broca en la pestaña Plagas." },
+  { id: 7, nombre: "Averanado", grado: 2, icon: "🟫",
+    descripcionVisual: "Grano arrugado y reseco, como una pasa.",
+    causa: "Secado irregular (capa muy gruesa, removido insuficiente) o frutos secados en exceso en la rama.",
+    consecuencia: "Penaliza (Grado 2)." },
+];
+const ESTANDAR_ESPECIAL = { puntajeMin: 80, grado1Max: 0, grado2Max: 5, baseGramos: 300, humedadMax: 0.70 };
+
+// ── Certificaciones, verificación y producción sostenible ────────────────────
+// Esquemas más relevantes para café especial colombiano (FNC, Acuerdo Café Bosque y Clima 2021,
+// Global Coffee Platform) — el caficultor marca cuáles tiene o le exige su comprador.
+const CERTIFICACIONES_CAFE = [
+  { id: "rainforest", icon: "🐸", nombre: "Rainforest Alliance", detalle: "Biodiversidad, cero deforestación, derechos laborales y manejo responsable de agroquímicos." },
+  { id: "comerciojusto", icon: "🤝", nombre: "Comercio Justo / Fairtrade", detalle: "Precio mínimo garantizado y prima de desarrollo para la asociación de productores." },
+  { id: "organico", icon: "🌿", nombre: "Orgánico / Ecológico", detalle: "Cero fertilizantes ni plaguicidas de síntesis química; manejo orgánico del suelo y las plagas." },
+  { id: "4c", icon: "🌍", nombre: "4C / Global Coffee Platform", detalle: "Código base de sostenibilidad social, ambiental y económica para café verde." },
+  { id: "origenfnc", icon: "🇨🇴", nombre: "Denominación de Origen \"Café de Colombia\" (FNC)", detalle: "Trazabilidad de origen: 100% café arábigo cultivado en Colombia." },
+  { id: "cbc", icon: "🌳", nombre: "Acuerdo Café, Bosque y Clima", detalle: "Compromiso voluntario de cero deforestación, verificado por monitoreo satelital IDEAM/SMByC." },
+  { id: "cafepractices", icon: "☕", nombre: "C.A.F.E. Practices", detalle: "Estándar de abastecimiento responsable exigido por algunos compradores internacionales." },
+];
+const CRITERIOS_VERIFICACION = [
+  { id: "no_deforestacion", icon: "🌳", nombre: "No hay deforestación de bosque natural en mi finca", detalle: "Cumplo la zonificación ambiental y la frontera agrícola de mi región." },
+  { id: "no_trabajo_infantil", icon: "🧒", nombre: "No empleo mano de obra infantil en labores peligrosas", detalle: "Niños y adolescentes no manipulan agroquímicos ni maquinaria." },
+  { id: "registro_agroquimicos", icon: "📋", nombre: "Llevo registro de aplicaciones de agroquímicos", detalle: "Producto, dosis, fecha y trabajador que aplicó, por lote." },
+  { id: "proteccion_trabajadores", icon: "🧤", nombre: "Los trabajadores tienen agua potable y equipo de protección al fumigar", detalle: "Guantes, máscara y ropa adecuada disponibles durante la aplicación." },
+  { id: "respeto_zonas_proteccion", icon: "🛡️", nombre: "Respeto las zonas de reserva o protección cercanas a mi finca", detalle: "Rondas hídricas, bosques de ribera y áreas protegidas, sin intervenir." },
+];
+const PRACTICAS_SOSTENIBLES = [
+  { id: "agroforesteria", icon: "🌳", nombre: "Sistema agroforestal / café bajo sombra con especies nativas" },
+  { id: "no_deforesto", icon: "🚫", nombre: "No deforesto bosque natural ni amplío el cultivo sobre bosque" },
+  { id: "proteccion_agua", icon: "💧", nombre: "Protejo las fuentes de agua: no vierto aguas mieles ni pulpa directo a quebradas o nacederos" },
+  { id: "compostaje", icon: "♻️", nombre: "Uso la pulpa y la cascarilla de café como abono orgánico o compost" },
+  { id: "no_quemas", icon: "🔥", nombre: "No quemo residuos de cosecha ni rastrojo" },
+  { id: "mip", icon: "🐞", nombre: "Manejo integrado de plagas: prefiero control biológico/cultural antes que químico" },
+  { id: "envases_agroquimicos", icon: "🗑️", nombre: "Triple lavado y disposición correcta de envases vacíos de agroquímicos" },
+  { id: "energia_renovable", icon: "☀️", nombre: "Uso fuentes de energía renovable (paneles solares, biodigestor)" },
+  { id: "conservacion_suelo", icon: "🌱", nombre: "Conservación de suelos: barreras vivas, coberturas, labranza mínima" },
+  { id: "asociatividad", icon: "🤝", nombre: "Participo en una cooperativa o asociación de productores" },
+];
+
 function generarRecomendaciones(d) {
   const recs = [];
   const add = (p, area, titulo, texto, impacto) => recs.push({ prioridad: p, area, titulo, texto, impacto });
@@ -299,6 +372,32 @@ function generarRecomendaciones(d) {
     `${d.pctPasilla}% de pasilla supera el rango esperado (0-8%). Se forma por defectos de cosecha (frutos verdes, brocados) o grano partido en trilla.`,
     "Impacto en ingresos netos");
 
+  if (Array.isArray(d.defectosObservados) && d.defectosObservados.length > 0) {
+    const g1 = d.defectosObservados.filter(id => DEFECTOS_GRANO.find(x => x.id === id)?.grado === 1);
+    const g2 = d.defectosObservados.filter(id => DEFECTOS_GRANO.find(x => x.id === id)?.grado === 2);
+    if (g1.length > 0) add(1, "Trilla", "Defectos Grado 1 presentes — descalifican para especialidad",
+      `Marcaste ${g1.map(id => DEFECTOS_GRANO.find(x => x.id === id).nombre).join(", ")} en tu muestra de trilla. El estándar SCA exige CERO defectos Grado 1 para clasificar como café especial, sin importar el puntaje en taza.`,
+      "Crítico para acceso a precio de especialidad");
+    else if (g2.length > 0) add(2, "Trilla", "Defectos Grado 2 presentes — revisa la cantidad",
+      `Marcaste ${g2.map(id => DEFECTOS_GRANO.find(x => x.id === id).nombre).join(", ")}. El estándar de especialidad permite máximo 5 defectos Grado 2 por cada 300 g de muestra; si al contar superan ese número, tu puntaje y clasificación bajan.`,
+      "Impacto en clasificación y precio");
+  }
+
+  if (d.calibreGrano === "menor14") add(2, "Trilla", "Calibre de grano bajo (pasa malla 14)",
+    "Tu café no retiene en la malla 14, el límite mínimo de tamaño para café especial. El grano pequeño se vende en categorías comerciales de menor precio, independientemente de su calidad en taza.",
+    "Impacto en clasificación comercial");
+
+  if (Array.isArray(d.practicasSostenibles) && !d.practicasSostenibles.includes("no_deforesto")) {
+    add(1, "Sostenibilidad", "Riesgo de incumplimiento de cero deforestación",
+      "No marcaste 'No deforesto bosque natural'. Cada vez más compradores nacionales e internacionales (Acuerdo Café, Bosque y Clima; normativas como la de deforestación de la UE) exigen evidencia de que el café no proviene de tierras deforestadas recientemente, con verificación por monitoreo satelital.",
+      "Crítico para acceso a mercados de exportación y precio diferencial");
+  }
+  if (Array.isArray(d.certificaciones) && d.certificaciones.length === 0) {
+    add(2, "Certificación", "Sin certificaciones registradas todavía",
+      "No marcaste ninguna certificación. No es obligatorio para vender café, pero certificaciones como Rainforest Alliance o Comercio Justo suelen abrir acceso a mejores precios y compradores. Consulta con tu cooperativa o la FNC sobre el proceso y costos.",
+      "Oportunidad de mejora de precio a mediano plazo");
+  }
+
   const s_hr = semaforo("hrAlmacen", d.hrAlmacen);
   if (s_hr === "alert" && parseFloat(d.hrAlmacen) > 70) add(2, "Almacenamiento", "Humedad relativa alta en bodega",
     `Con ${d.hrAlmacen}% de HR el café absorbe humedad y puede desarrollar hongos. Mejorar ventilación, usar sacos de fique y separar del suelo sobre estibas.`,
@@ -319,6 +418,32 @@ function generarRecomendaciones(d) {
   else if (s_ph === "alert" && parseFloat(d.ph) > 5.5) add(2, "Suelo", "Suelo poco ácido para café",
     `Con pH ${d.ph} el suelo está por encima del rango ideal. Puede reducir la disponibilidad de hierro, zinc y manganeso.`,
     "Impacto en nutrición");
+
+  const s_temp = semaforo("temperaturaPromedio", d.temperaturaPromedio);
+  if (s_temp === "alert" && parseFloat(d.temperaturaPromedio) > 22) add(2, "Clima", "Temperatura por encima del óptimo",
+    `Con ${d.temperaturaPromedio}°C de promedio anual, por encima de 18-22°C, se acelera la maduración del fruto (menos tiempo para acumular azúcares) y aumenta el estrés térmico de la planta.`,
+    "Impacto en calidad en taza y vigor de la planta");
+  else if (s_temp === "alert" && parseFloat(d.temperaturaPromedio) < 18) add(2, "Clima", "Temperatura por debajo del óptimo",
+    `Con ${d.temperaturaPromedio}°C de promedio anual, por debajo de 18-22°C, el crecimiento y desarrollo del fruto se hacen más lentos, retrasando la cosecha.`,
+    "Impacto en desarrollo de la planta");
+
+  const s_precip = semaforo("precipitacionAnual", d.precipitacionAnual);
+  if (s_precip === "alert" && parseFloat(d.precipitacionAnual) < 1500) add(1, "Clima", "Déficit hídrico anual",
+    `Con ${d.precipitacionAnual} mm/año, por debajo de los 1.500-3.000 mm que requiere el cafeto, el agua (80% del peso vivo de la planta) es insuficiente para un desarrollo normal. Considera riego de apoyo si es viable.`,
+    "Alto impacto en producción y desarrollo de la planta");
+  else if (s_precip === "alert" && parseFloat(d.precipitacionAnual) > 3000) add(2, "Clima", "Exceso de lluvia anual",
+    `Con ${d.precipitacionAnual} mm/año por encima del rango ideal, aumenta el riesgo de enfermedades fúngicas y de problemas en la floración/cuajado del fruto.`,
+    "Impacto en sanidad del cultivo");
+
+  const s_mesesSecos = semaforo("mesesSecos", d.mesesSecos);
+  if (s_mesesSecos === "alert" && parseFloat(d.mesesSecos) > 4) add(1, "Clima", "Periodo seco prolongado",
+    `${d.mesesSecos} meses secos consecutivos superan el límite de 4 meses que tolera el cafeto sin afectar su desarrollo. Más allá de ese punto el riesgo de estrés hídrico severo es alto.`,
+    "Alto impacto en producción");
+
+  const s_hrAmb = semaforo("hrAmbiente", d.hrAmbiente);
+  if (s_hrAmb === "alert" && parseFloat(d.hrAmbiente) > 70) add(2, "Clima", "Humedad relativa ambiental alta",
+    `Con ${d.hrAmbiente}% de humedad relativa, por encima del 60-70% ideal, se facilita el desarrollo de enfermedades fúngicas como roya, mancha de hierro y ojo de gallo.`,
+    "Impacto en sanidad — revisa la pestaña Plagas");
 
   if (d.pctSombra === "0" || d.pctSombra === "sin") add(3, "Suelo y clima", "Cultivo a plena exposición sin sombra",
     `Sin sombrío, el cafetal es más vulnerable a la sequía, estrés térmico y desgaste prematuro de la planta, especialmente en variedades tradicionales.`,
@@ -524,6 +649,76 @@ function CatalogoPlagas({ seleccionadas, onToggle }) {
   );
 }
 
+// ── CATÁLOGO DE DEFECTOS DEL GRANO: filtro por grado + tarjetas expandibles ──
+function TarjetaDefecto({ x, marcado, onToggle }) {
+  const [abierta, setAbierta] = useState(false);
+  const colorGrado = x.grado === 1 ? C.alert : C.warn;
+  return (
+    <div style={{ background: C.white, borderRadius: 12, marginBottom: 10, overflow: "hidden",
+      borderLeft: `4px solid ${marcado ? colorGrado : C.clay}`, boxShadow: "0 2px 6px rgba(0,0,0,0.07)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 12, cursor: "pointer" }} onClick={() => setAbierta(a => !a)}>
+        <input type="checkbox" checked={marcado} onClick={e => e.stopPropagation()} onChange={() => onToggle(x.id)} style={{ width: 20, height: 20, flexShrink: 0 }} />
+        <span style={{ fontSize: 22 }}>{x.icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.earth }}>{x.nombre}</div>
+          <div style={{ fontSize: 10, fontWeight: 800, color: colorGrado }}>
+            {x.grado === 1 ? "Grado 1 · descalifica" : "Grado 2 · penaliza"}
+          </div>
+        </div>
+        <span style={{ fontSize: 12, color: C.bark }}>{abierta ? "▲" : "▼"}</span>
+      </div>
+      {abierta && (
+        <div style={{ padding: "0 14px 14px" }}>
+          <p style={{ fontSize: 12, color: C.roast, lineHeight: 1.55, marginBottom: 8 }}><b>Cómo se ve:</b> {x.descripcionVisual}</p>
+          <p style={{ fontSize: 12, color: C.roast, lineHeight: 1.55, marginBottom: 8 }}><b>Causa probable:</b> {x.causa}</p>
+          <div style={{ background: "#FFF8E8", border: `1px solid ${colorGrado}`, borderRadius: 8, padding: 10 }}>
+            <div style={{ fontSize: 12, color: "#5a4010" }}>{x.consecuencia}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CatalogoDefectos({ seleccionados, onToggle }) {
+  const [filtro, setFiltro] = useState("todos");
+  const filtrados = filtro === "todos" ? DEFECTOS_GRANO : DEFECTOS_GRANO.filter(x => x.grado === filtro);
+  return (
+    <>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 2 }}>
+        {[{ id: "todos", label: "Todos" }, { id: 1, label: "Grado 1" }, { id: 2, label: "Grado 2" }].map(t => (
+          <button key={t.id} onClick={() => setFiltro(t.id)} style={{
+            flexShrink: 0, padding: "8px 12px", borderRadius: 20, border: `1.5px solid ${filtro === t.id ? C.roast : C.clay}`,
+            background: filtro === t.id ? C.roast : C.white, color: filtro === t.id ? C.cream : C.roast,
+            fontSize: 12, fontWeight: 700, cursor: "pointer",
+          }}>{t.label}</button>
+        ))}
+      </div>
+      {filtrados.map(x => (
+        <TarjetaDefecto key={x.id} x={x} marcado={seleccionados.includes(x.id)} onToggle={onToggle} />
+      ))}
+    </>
+  );
+}
+
+// ── CHECKLIST GENÉRICO (certificaciones, criterios de verificación, prácticas sostenibles) ──
+function ItemChecklist({ icon, label, detalle, marcado, onToggle }) {
+  return (
+    <label style={{
+      display: "flex", alignItems: "flex-start", gap: 10, background: C.white, borderRadius: 12,
+      padding: 12, marginBottom: 8, cursor: "pointer",
+      border: `1.5px solid ${marcado ? C.leaf : "transparent"}`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+    }}>
+      <input type="checkbox" checked={marcado} onChange={onToggle} style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
+      <span style={{ fontSize: 20, flexShrink: 0 }}>{icon}</span>
+      <span style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.earth }}>{label}</div>
+        {detalle && <div style={{ fontSize: 11, color: C.bark, marginTop: 2, lineHeight: 1.4 }}>{detalle}</div>}
+      </span>
+    </label>
+  );
+}
+
 // ── DESCARGA DE UN DIAGNÓSTICO COMO WORD (.docx generado en el navegador) ─────
 const INDICADORES_WORD = [
   ["altitud", "Altitud"], ["pctRojos", "% frutos rojos"], ["puntajeSCA", "Puntaje SCA"],
@@ -563,12 +758,26 @@ async function descargarWordDiagnostico(d, code) {
 
   const sueloTexto = [
     d.tipoSuelo ? `Suelo ${d.tipoSuelo.toLowerCase()}` : "",
-    d.humedadSuelo ? `humedad habitual: ${d.humedadSuelo.toLowerCase()}` : "",
-    d.regimenLluvias ? `lluvias: ${d.regimenLluvias}` : "",
+    d.humedadSuelo ? `humedad del suelo habitual: ${d.humedadSuelo.toLowerCase()}` : "",
     d.pctSombra !== "" && d.pctSombra !== undefined ? `sombra: ${d.pctSombra}%${d.especiesSombra ? " (" + d.especiesSombra + ")" : ""}` : "",
+  ].filter(Boolean).join(" · ");
+  const climaTexto = [
+    d.temperaturaPromedio !== "" ? `temperatura promedio: ${d.temperaturaPromedio}°C` : "",
+    d.precipitacionAnual !== "" ? `precipitación: ${d.precipitacionAnual} mm/año` : "",
+    d.regimenLluvias ? `régimen: ${d.regimenLluvias}` : "",
+    d.mesesSecos !== "" ? `meses secos consecutivos: ${d.mesesSecos}` : "",
+    d.hrAmbiente !== "" ? `humedad relativa ambiental: ${d.hrAmbiente}%` : "",
   ].filter(Boolean).join(" · ");
 
   const plagasNombres = (d.plagasObservadas || []).map(id => PLAGAS.find(p => p.id === id)?.nombre).filter(Boolean);
+  const defectosNombres = (d.defectosObservados || []).map(id => {
+    const x = DEFECTOS_GRANO.find(dg => dg.id === id);
+    return x ? `${x.nombre} (Grado ${x.grado})` : null;
+  }).filter(Boolean);
+  const calibreTexto = { "menor14": "No pasa malla 14 (calibre bajo)", "15-16": "Malla 15-16 (Excelso)", "17-18": "Malla 17-18 (Supremo)", "nose": "No verificado" }[d.calibreGrano] || "Sin dato";
+  const factorRendTexto = d.mermaTrilla !== "" && d.mermaTrilla !== undefined ? `${(100 - parseFloat(d.mermaTrilla)).toFixed(1)}%` : "Sin dato";
+  const certificacionesNombres = (d.certificaciones || []).map(id => CERTIFICACIONES_CAFE.find(c => c.id === id)?.nombre).filter(Boolean);
+  const practicasNombres = (d.practicasSostenibles || []).map(id => PRACTICAS_SOSTENIBLES.find(p => p.id === id)?.nombre).filter(Boolean);
 
   const precioFNC = bm?.precioFNCPorKilogramo || 23768;
   const kgBase = parseFloat(d.kgPergaminoCosecha) > 0 ? parseFloat(d.kgPergaminoCosecha) : 100;
@@ -588,12 +797,26 @@ async function descargarWordDiagnostico(d, code) {
     new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Indicadores" }) ] }),
     ...INDICADORES_WORD.map(([campo, label]) => filaIndicador(label, campo)),
     new Paragraph({ text: "" }),
+    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Trilla — factor de rendimiento, calibre y defectos" }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: `Factor de rendimiento: ${factorRendTexto}  ·  Calibre: ${calibreTexto}`, size: 20, color: W.earth }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: defectosNombres.length > 0 ? `Defectos observados: ${defectosNombres.join(", ")}` : "Sin defectos marcados", size: 18, color: W.bark }) ] }),
+    new Paragraph({ text: "" }),
     new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Suelo y clima" }) ] }),
-    new Paragraph({ children: [ new TextRun({ text: sueloTexto || "Sin datos de suelo/clima registrados", size: 20, color: W.roast }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: sueloTexto || "Sin datos de suelo registrados", size: 20, color: W.roast }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: climaTexto || "Sin datos de clima registrados", size: 20, color: W.roast }) ] }),
     new Paragraph({ text: "" }),
     new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Plagas y enfermedades observadas" }) ] }),
     new Paragraph({ children: [ new TextRun({ text: plagasNombres.length > 0 ? plagasNombres.join(", ") : "Ninguna marcada", size: 20, color: W.roast }) ] }),
     ...(d.notasFitosanitarias ? [new Paragraph({ children: [ new TextRun({ text: d.notasFitosanitarias, size: 18, color: W.bark }) ] })] : []),
+    new Paragraph({ text: "" }),
+    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Certificación y verificación" }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: certificacionesNombres.length > 0 ? certificacionesNombres.join(", ") : "Sin certificaciones registradas", size: 20, color: W.roast }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: `Criterios de verificación cumplidos: ${(d.criteriosVerificacion || []).length} de ${CRITERIOS_VERIFICACION.length}`, size: 18, color: W.bark }) ] }),
+    ...(d.notasCertificacion ? [new Paragraph({ children: [ new TextRun({ text: d.notasCertificacion, size: 18, color: W.bark }) ] })] : []),
+    new Paragraph({ text: "" }),
+    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Producción sostenible" }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: practicasNombres.length > 0 ? practicasNombres.join(", ") : "Sin prácticas marcadas", size: 20, color: W.roast }) ] }),
+    ...(d.notasSostenibilidad ? [new Paragraph({ children: [ new TextRun({ text: d.notasSostenibilidad, size: 18, color: W.bark }) ] })] : []),
     new Paragraph({ text: "" }),
     new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Áreas de mejora detectadas" }) ] }),
     ...recParrafos,
@@ -748,13 +971,18 @@ async function cambiarPassword(code) {
 }
 
 // ── APP ───────────────────────────────────────────────────────────────────────
-const SECCIONES = ["Finca", "Cosecha", "Beneficio", "Secado", "Trilla", "Suelo y Clima", "Plagas", "Diagnóstico"];
+const SECCIONES = ["Finca", "Cosecha", "Beneficio", "Secado", "Trilla", "Suelo y Clima", "Plagas", "Certificación", "Sostenibilidad", "Diagnóstico"];
 const ESTADO = {
   nombre: "", vereda: "", altitud: "", variedad: "", hectareas: "",
   pctRojos: "", puntajeSCA: "", fermentacion: "", relacionCereza: "",
   humedadPergamino: "", hrAlmacen: "", mermaTrilla: "", pctPasilla: "",
+  metodoTrilla: "muestra", pesoMuestraPergamino: "250", pesoCascarilla: "", pesoPasillaMuestra: "", pesoExcelsoMuestra: "",
+  calibreGrano: "", defectosObservados: [],
   tipoSuelo: "", ph: "", humedadSuelo: "", regimenLluvias: "", pctSombra: "", especiesSombra: "",
+  temperaturaPromedio: "", precipitacionAnual: "", mesesSecos: "", hrAmbiente: "",
   plagasObservadas: [], notasFitosanitarias: "",
+  certificaciones: [], notasCertificacion: "", criteriosVerificacion: [],
+  practicasSostenibles: [], notasSostenibilidad: "",
   kgPergaminoCosecha: "", pctPrecioPasilla: "30",
 };
 
@@ -766,6 +994,26 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
   const togglePlaga = useCallback((id) => setDatos(d => ({
     ...d, plagasObservadas: d.plagasObservadas.includes(id) ? d.plagasObservadas.filter(x => x !== id) : [...d.plagasObservadas, id],
   })), []);
+  const toggleDefecto = useCallback((id) => setDatos(d => ({
+    ...d, defectosObservados: d.defectosObservados.includes(id) ? d.defectosObservados.filter(x => x !== id) : [...d.defectosObservados, id],
+  })), []);
+  // Toggle genérico para listas de checklist (certificaciones, criterios de verificación, prácticas sostenibles)
+  const toggleEnLista = useCallback((campo, id) => setDatos(d => ({
+    ...d, [campo]: d[campo].includes(id) ? d[campo].filter(x => x !== id) : [...d[campo], id],
+  })), []);
+  // Calculadora de factor de rendimiento: a partir de los pesos de la muestra de trilla,
+  // recalcula mermaTrilla y pctPasilla (mismos campos que usan recomendaciones/Word/simulación).
+  const setMuestra = useCallback((name, val) => setDatos(d => {
+    const nuevo = { ...d, [name]: val };
+    const muestra = parseFloat(nuevo.pesoMuestraPergamino) || 0;
+    const pasillaM = parseFloat(nuevo.pesoPasillaMuestra) || 0;
+    const excelso = parseFloat(nuevo.pesoExcelsoMuestra) || 0;
+    if (muestra > 0) {
+      nuevo.mermaTrilla = Math.max(0, 100 - (excelso / muestra) * 100).toFixed(1);
+      nuevo.pctPasilla = Math.max(0, (pasillaM / muestra) * 100).toFixed(1);
+    }
+    return nuevo;
+  }), []);
   const progreso = (paso / (SECCIONES.length - 1)) * 100;
 
   const [bm, setBm] = useState(null);
@@ -798,6 +1046,15 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
     {valor:"8",label:"8%"},{valor:"9",label:"9%"},{valor:"10",label:"10%"},
     {valor:"11",label:"11%"},{valor:"12",label:"12%"},{valor:"13",label:"13%"},
     {valor:"15",label:"15%"},{valor:"18",label:"+18%"},
+  ];
+  const opcMetodoTrilla = [
+    {valor:"muestra",label:"Mido una muestra yo mismo"},{valor:"directo",label:"Ya tengo el % del trillador"},
+  ];
+  const opcCalibre = [
+    {valor:"menor14",label:"No pasa malla 14 (grano pequeño)"},
+    {valor:"15-16",label:"Malla 15-16 (Excelso)"},
+    {valor:"17-18",label:"Malla 17-18 (Supremo)"},
+    {valor:"nose",label:"No tengo zarandas / no sé"},
   ];
   const opcTipoSuelo = [
     {valor:"Arcilloso",label:"Arcilloso"},{valor:"Franco",label:"Franco"},
@@ -920,16 +1177,64 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
 
         {/* ── PASO 4: TRILLA ── */}
         {paso === 4 && <>
-          <SeccionHeader numero="5" titulo="Trilla" subtitulo="La merma y el % de pasilla revelan la calidad acumulada de todo el proceso" />
-          <Campo label="Merma en trilla (%)" name="mermaTrilla" value={datos.mermaTrilla} onChange={set}
-            inputMode="decimal" placeholder="Ej. 19" min={10} max={35} step="0.5"
-            ayuda="Dato que da el trillador: diferencia entre kg de pergamino que entran y kg de almendra que salen. Estándar FNC = 19%." />
-          <Campo label="% de pasilla en trilla" name="pctPasilla" value={datos.pctPasilla} onChange={set}
-            inputMode="decimal" placeholder="Ej. 6" min={0} max={30} step="0.5"
-            ayuda="Grano partido, negro o manchado que el trillador separa del café de primera. Pídele este dato al trillador por lote." />
-          <div style={{ background: C.fog, borderRadius: 12, padding: 14 }}>
-            <IndicadorBar label="Merma en trilla" valor={datos.mermaTrilla} campo="mermaTrilla" />
-            <IndicadorBar label="% pasilla" valor={datos.pctPasilla} campo="pctPasilla" />
+          <SeccionHeader numero="5" titulo="Trilla" subtitulo="El factor de rendimiento, los defectos del grano y el calibre revelan la calidad acumulada de todo el proceso" />
+
+          <SelectorBotones label="¿Cómo vas a calcular el factor de rendimiento?" name="metodoTrilla" value={datos.metodoTrilla} onChange={set}
+            opciones={opcMetodoTrilla} />
+
+          {datos.metodoTrilla === "muestra" ? <>
+            <TipBox titulo="¿Cómo se mide el factor de rendimiento en finca?" texto={
+              "Toma una muestra de unos 250 g de café pergamino seco, bien mezclada de tu lote, y pásala por una trilladora o molinillo pequeño. Separa el resultado en tres partes y pésalas por separado: la cascarilla (la cáscara de pergamino que se desprende), la pasilla (grano partido, negro, agrio o manchado) y el café excelso (grano bueno, sin defectos). El factor de rendimiento es el peso de excelso dividido entre el peso inicial de la muestra."
+            } />
+            <Campo label="Peso de la muestra de pergamino seco (g)" name="pesoMuestraPergamino" value={datos.pesoMuestraPergamino} onChange={setMuestra}
+              inputMode="decimal" placeholder="Ej. 250" min={50} max={2000} step="10" />
+            <Campo label="Cascarilla generada (g)" name="pesoCascarilla" value={datos.pesoCascarilla} onChange={setMuestra}
+              inputMode="decimal" placeholder="Ej. 45" min={0} max={2000} step="1"
+              ayuda="Cáscara de pergamino que se desprende del grano al trillar. Es la merma normal del proceso, no un defecto." />
+            <Campo label="Pasilla generada (g)" name="pesoPasillaMuestra" value={datos.pesoPasillaMuestra} onChange={setMuestra}
+              inputMode="decimal" placeholder="Ej. 15" min={0} max={2000} step="1"
+              ayuda="Grano partido, negro, agrio o manchado que se separa del café de primera." />
+            <Campo label="Café excelso obtenido (g)" name="pesoExcelsoMuestra" value={datos.pesoExcelsoMuestra} onChange={setMuestra}
+              inputMode="decimal" placeholder="Ej. 190" min={0} max={2000} step="1"
+              ayuda="Grano bueno, sin defectos, que queda al final. Debería ser aproximadamente el peso de la muestra menos cascarilla y pasilla." />
+            <div style={{ background: C.fog, borderRadius: 12, padding: 14 }}>
+              <IndicadorBar label="Factor de rendimiento (% excelso)" valor={datos.mermaTrilla === "" ? "" : (100 - parseFloat(datos.mermaTrilla)).toFixed(1)} campo="factorRendimiento" />
+              <IndicadorBar label="Merma en trilla" valor={datos.mermaTrilla} campo="mermaTrilla" />
+              <IndicadorBar label="% pasilla" valor={datos.pctPasilla} campo="pctPasilla" />
+            </div>
+          </> : <>
+            <Campo label="Merma en trilla (%)" name="mermaTrilla" value={datos.mermaTrilla} onChange={set}
+              inputMode="decimal" placeholder="Ej. 19" min={10} max={35} step="0.5"
+              ayuda="Dato que da el trillador: diferencia entre kg de pergamino que entran y kg de almendra que salen. Estándar FNC = 19%." />
+            <Campo label="% de pasilla en trilla" name="pctPasilla" value={datos.pctPasilla} onChange={set}
+              inputMode="decimal" placeholder="Ej. 6" min={0} max={30} step="0.5"
+              ayuda="Grano partido, negro o manchado que el trillador separa del café de primera. Pídele este dato al trillador por lote." />
+            <div style={{ background: C.fog, borderRadius: 12, padding: 14 }}>
+              <IndicadorBar label="Merma en trilla" valor={datos.mermaTrilla} campo="mermaTrilla" />
+              <IndicadorBar label="% pasilla" valor={datos.pctPasilla} campo="pctPasilla" />
+            </div>
+          </>}
+
+          <div style={{ marginTop: 24 }}>
+            <SelectorBotones label="Calibre / tamaño del grano (cribado por malla)" name="calibreGrano" value={datos.calibreGrano} onChange={set}
+              opciones={opcCalibre}
+              ayuda="Si tienes zarandas de clasificación, pasa el café excelso por malla 14: lo que se cuela (pasa) es de calibre bajo y no se considera café especial." />
+          </div>
+
+          <div style={{ marginTop: 24 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 900, color: C.earth, marginBottom: 4 }}>🔍 Defectos del grano</h3>
+            <p style={{ fontSize: 12, color: C.bark, marginBottom: 10, lineHeight: 1.55 }}>
+              El catador profesional distingue cerca de 20 categorías de defectos físicos. Aquí se agrupan en las
+              8 más frecuentes para que puedas identificarlas a simple vista en tu muestra de trilla. No necesitas
+              contarlas una por una: marca las que observes para enfocar la mejora.
+            </p>
+            <div style={{ background: "#FFF8E8", border: `1px solid ${C.warn}`, borderRadius: 10, padding: 12, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#8A5A1E", marginBottom: 4 }}>ESTÁNDAR SCA — CAFÉ ESPECIAL</div>
+              <div style={{ fontSize: 12, color: "#5a4010", lineHeight: 1.6 }}>
+                Puntaje mínimo {ESTANDAR_ESPECIAL.puntajeMin}/100 pts · Defectos Grado 1: CERO permitidos · Defectos Grado 2: máx. {ESTANDAR_ESPECIAL.grado2Max} por cada {ESTANDAR_ESPECIAL.baseGramos} g
+              </div>
+            </div>
+            <CatalogoDefectos seleccionados={datos.defectosObservados} onToggle={toggleDefecto} />
           </div>
         </>}
 
@@ -943,15 +1248,39 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
             inputMode="decimal" placeholder="Ej. 5.2" min={3.5} max={8} step="0.1"
             ayuda="Dato de análisis de suelo del ICA, Cenicafé o tu cooperativa. El café prefiere suelos ligeramente ácidos (5,0-5,5)." />
           <SelectorBotones label="Humedad del suelo (situación habitual)" name="humedadSuelo" value={datos.humedadSuelo} onChange={set} opciones={opcHumedadSuelo} />
+
+          <h3 style={{ fontSize: 15, fontWeight: 900, color: C.earth, marginTop: 24, marginBottom: 4 }}>🌦️ Clima</h3>
+          <TipBox titulo="El clima rige el ciclo de vida del café" texto={
+            "La temperatura regula la nutrición y el desarrollo del fruto; el cafeto necesita entre 1.500 y 3.000 mm de lluvia al año y no tolera periodos secos de más de 4 meses (el agua es el 80% del peso vivo de la planta); la humedad relativa ideal es 60-70% (por encima, favorece hongos); y la luz de sol regula crecimiento y floración según horas e intensidad."
+          } />
+          <Campo label="Temperatura promedio anual (°C)" name="temperaturaPromedio" value={datos.temperaturaPromedio} onChange={set}
+            inputMode="decimal" placeholder="Ej. 20" min={10} max={30} step="0.5"
+            ayuda="Estimación de la temperatura promedio del año en tu finca. El café arábigo se desarrolla mejor entre 18 y 22°C." />
+          <Campo label="Precipitación anual (mm)" name="precipitacionAnual" value={datos.precipitacionAnual} onChange={set}
+            inputMode="numeric" placeholder="Ej. 2000" min={500} max={5000} step="50"
+            ayuda="Lluvia total que cae en un año en tu zona. Si no tienes el dato exacto, pregunta a tu cooperativa o usa un estimado de la región (San Adolfo: aprox. 1.800-2.200 mm/año)." />
           <SelectorBotones label="Régimen de lluvias de la zona" name="regimenLluvias" value={datos.regimenLluvias} onChange={set} opciones={opcRegimenLluvias} />
+          <Campo label="Meses secos consecutivos (sin lluvia significativa)" name="mesesSecos" value={datos.mesesSecos} onChange={set}
+            inputMode="numeric" placeholder="Ej. 2" min={0} max={12} step="1"
+            ayuda="¿Cuántos meses seguidos pasan sin lluvias importantes en un año típico? El cafeto no debería pasar más de 4 meses secos." />
+          <Campo label="Humedad relativa ambiental (%)" name="hrAmbiente" value={datos.hrAmbiente} onChange={set}
+            inputMode="numeric" placeholder="Ej. 65" min={30} max={100} step="1"
+            ayuda="Humedad del aire en la zona del cultivo (no la de la bodega). El rango ideal es 60-70%; por encima aumenta el riesgo de roya y otras enfermedades fúngicas." />
+
+          <h3 style={{ fontSize: 15, fontWeight: 900, color: C.earth, marginTop: 24, marginBottom: 4 }}>🌳 Sombra</h3>
           <SelectorBotones label="% de sombra sobre el cafetal" name="pctSombra" value={datos.pctSombra} onChange={set}
             opciones={opcSombra}
-            ayuda="Estima qué porcentaje del cafetal queda cubierto por árboles de sombra al mediodía." />
+            ayuda="Estima qué porcentaje del cafetal queda cubierto por árboles de sombra al mediodía. La sombra regula la cantidad de luz que recibe la planta." />
           <Campo label="Especies de sombra (opcional)" name="especiesSombra" value={datos.especiesSombra} onChange={set}
             tipo="text" inputMode="text" placeholder="Ej. Guamo, Nogal, Cedro" />
-          {datos.ph && (
-            <div style={{ background: C.fog, borderRadius: 12, padding: 14, marginTop: 4 }}>
-              <IndicadorBar label="pH del suelo" valor={datos.ph} campo="ph" />
+
+          {(datos.ph || datos.temperaturaPromedio || datos.precipitacionAnual || datos.mesesSecos || datos.hrAmbiente) && (
+            <div style={{ background: C.fog, borderRadius: 12, padding: 14, marginTop: 16 }}>
+              {datos.ph && <IndicadorBar label="pH del suelo" valor={datos.ph} campo="ph" />}
+              {datos.temperaturaPromedio !== "" && <IndicadorBar label="Temperatura promedio" valor={datos.temperaturaPromedio} campo="temperaturaPromedio" />}
+              {datos.precipitacionAnual !== "" && <IndicadorBar label="Precipitación anual" valor={datos.precipitacionAnual} campo="precipitacionAnual" />}
+              {datos.mesesSecos !== "" && <IndicadorBar label="Meses secos consecutivos" valor={datos.mesesSecos} campo="mesesSecos" />}
+              {datos.hrAmbiente !== "" && <IndicadorBar label="Humedad relativa ambiental" valor={datos.hrAmbiente} campo="hrAmbiente" />}
             </div>
           )}
         </>}
@@ -968,8 +1297,49 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           </div>
         </>}
 
-        {/* ── PASO 7: DIAGNÓSTICO ── */}
+        {/* ── PASO 7: CERTIFICACIÓN Y VERIFICACIÓN ── */}
         {paso === 7 && <>
+          <SeccionHeader numero="8" titulo="Certificación y verificación" subtitulo="Marca las certificaciones que tienes o te exige tu comprador, y los criterios básicos que ya cumples" />
+          <h3 style={{ fontSize: 14, fontWeight: 900, color: C.earth, marginBottom: 8 }}>🏷️ Certificaciones</h3>
+          {CERTIFICACIONES_CAFE.map(c => (
+            <ItemChecklist key={c.id} icon={c.icon} label={c.nombre} detalle={c.detalle}
+              marcado={datos.certificaciones.includes(c.id)} onToggle={() => toggleEnLista("certificaciones", c.id)} />
+          ))}
+          <div style={{ marginTop: 20 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 900, color: C.earth, marginBottom: 8 }}>✅ Criterios básicos de verificación</h3>
+            <p style={{ fontSize: 12, color: C.bark, marginBottom: 10, lineHeight: 1.55 }}>
+              Estos criterios son comunes a la mayoría de esquemas de certificación y verificación. Márcalos si ya los cumples, aunque no tengas una certificación formal.
+            </p>
+            {CRITERIOS_VERIFICACION.map(c => (
+              <ItemChecklist key={c.id} icon={c.icon} label={c.nombre} detalle={c.detalle}
+                marcado={datos.criteriosVerificacion.includes(c.id)} onToggle={() => toggleEnLista("criteriosVerificacion", c.id)} />
+            ))}
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <label style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.earth, marginBottom: 5 }}>Notas adicionales (opcional)</label>
+            <textarea value={datos.notasCertificacion} onChange={e => set("notasCertificacion", e.target.value)} rows={3}
+              placeholder="Ej. Estoy en proceso de certificación Rainforest Alliance con mi cooperativa"
+              style={{ width: "100%", padding: "13px 16px", border: `2px solid ${C.clay}`, borderRadius: 10, fontSize: 14, background: C.white, color: C.earth, outline: "none", resize: "vertical", fontFamily: "inherit" }} />
+          </div>
+        </>}
+
+        {/* ── PASO 8: PRODUCCIÓN SOSTENIBLE ── */}
+        {paso === 8 && <>
+          <SeccionHeader numero="9" titulo="Producción sostenible" subtitulo="Marca las prácticas ambientales y sociales que ya implementas en tu finca" />
+          {PRACTICAS_SOSTENIBLES.map(p => (
+            <ItemChecklist key={p.id} icon={p.icon} label={p.nombre}
+              marcado={datos.practicasSostenibles.includes(p.id)} onToggle={() => toggleEnLista("practicasSostenibles", p.id)} />
+          ))}
+          <div style={{ marginTop: 16 }}>
+            <label style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.earth, marginBottom: 5 }}>Notas adicionales (opcional)</label>
+            <textarea value={datos.notasSostenibilidad} onChange={e => set("notasSostenibilidad", e.target.value)} rows={3}
+              placeholder="Ej. Tengo una franja de bosque protegida junto a la quebrada que abastece la finca"
+              style={{ width: "100%", padding: "13px 16px", border: `2px solid ${C.clay}`, borderRadius: 10, fontSize: 14, background: C.white, color: C.earth, outline: "none", resize: "vertical", fontFamily: "inherit" }} />
+          </div>
+        </>}
+
+        {/* ── PASO 9: DIAGNÓSTICO ── */}
+        {paso === 9 && <>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>🌿</div>
             <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: C.earth }}>{datos.nombre || "Tu finca"}</h2>
@@ -992,17 +1362,45 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
             <IndicadorBar label="Relación cereza:pergamino" valor={datos.relacionCereza} campo="relacionCereza" />
             <IndicadorBar label="Humedad pergamino" valor={datos.humedadPergamino} campo="humedadPergamino" />
             <IndicadorBar label="HR bodega" valor={datos.hrAlmacen} campo="hrAlmacen" />
+            {datos.mermaTrilla !== "" && <IndicadorBar label="Factor de rendimiento (% excelso)" valor={(100 - parseFloat(datos.mermaTrilla)).toFixed(1)} campo="factorRendimiento" />}
             <IndicadorBar label="Merma trilla" valor={datos.mermaTrilla} campo="mermaTrilla" />
             <IndicadorBar label="% pasilla" valor={datos.pctPasilla} campo="pctPasilla" />
             {datos.ph !== "" && <IndicadorBar label="pH del suelo" valor={datos.ph} campo="ph" />}
+            {datos.temperaturaPromedio !== "" && <IndicadorBar label="Temperatura promedio" valor={datos.temperaturaPromedio} campo="temperaturaPromedio" />}
+            {datos.precipitacionAnual !== "" && <IndicadorBar label="Precipitación anual" valor={datos.precipitacionAnual} campo="precipitacionAnual" />}
+            {datos.mesesSecos !== "" && <IndicadorBar label="Meses secos consecutivos" valor={datos.mesesSecos} campo="mesesSecos" />}
+            {datos.hrAmbiente !== "" && <IndicadorBar label="Humedad relativa ambiental" valor={datos.hrAmbiente} campo="hrAmbiente" />}
           </div>
 
-          {(datos.tipoSuelo || datos.pctSombra || datos.regimenLluvias) && (
+          {(datos.calibreGrano || datos.defectosObservados.length > 0) && (
+            <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 24 }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>🔍 Trilla — calibre y defectos</h3>
+              {datos.calibreGrano && (
+                <div style={{ fontSize: 13, color: C.roast, marginBottom: datos.defectosObservados.length > 0 ? 8 : 0 }}>
+                  Calibre: {opcCalibre.find(o => o.valor === datos.calibreGrano)?.label || datos.calibreGrano}
+                </div>
+              )}
+              {datos.defectosObservados.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {datos.defectosObservados.map(id => {
+                    const x = DEFECTOS_GRANO.find(d2 => d2.id === id);
+                    if (!x) return null;
+                    return <span key={id} style={{ fontSize: 11, fontWeight: 700, color: x.grado === 1 ? C.alert : C.warn, background: C.fog, borderRadius: 8, padding: "3px 9px" }}>{x.icon} {x.nombre}</span>;
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {(datos.tipoSuelo || datos.pctSombra || datos.regimenLluvias || datos.temperaturaPromedio || datos.precipitacionAnual) && (
             <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 24 }}>
               <h3 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>🌱 Suelo y clima</h3>
               <div style={{ fontSize: 13, color: C.roast, lineHeight: 1.7 }}>
                 {datos.tipoSuelo && <div>Suelo {datos.tipoSuelo.toLowerCase()}{datos.humedadSuelo ? `, habitualmente ${datos.humedadSuelo.toLowerCase()}` : ""}</div>}
-                {datos.regimenLluvias && <div>Régimen de lluvias: {datos.regimenLluvias}</div>}
+                {datos.temperaturaPromedio !== "" && <div>Temperatura promedio: {datos.temperaturaPromedio}°C</div>}
+                {datos.precipitacionAnual !== "" && <div>Precipitación anual: {datos.precipitacionAnual} mm{datos.regimenLluvias ? ` (${datos.regimenLluvias})` : ""}</div>}
+                {datos.mesesSecos !== "" && <div>Meses secos consecutivos: {datos.mesesSecos}</div>}
+                {datos.hrAmbiente !== "" && <div>Humedad relativa ambiental: {datos.hrAmbiente}%</div>}
                 {datos.pctSombra !== "" && <div>Sombra: {opcSombra.find(o => o.valor === datos.pctSombra)?.label || datos.pctSombra + "%"}{datos.especiesSombra ? ` (${datos.especiesSombra})` : ""}</div>}
               </div>
             </div>
@@ -1019,6 +1417,39 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
                 })}
               </div>
               {datos.notasFitosanitarias && <p style={{ fontSize: 12, color: C.bark, marginTop: 8, lineHeight: 1.5 }}>{datos.notasFitosanitarias}</p>}
+            </div>
+          )}
+
+          {(datos.certificaciones.length > 0 || datos.criteriosVerificacion.length > 0) && (
+            <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 24 }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>🏷️ Certificación y verificación</h3>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {datos.certificaciones.map(id => {
+                  const c = CERTIFICACIONES_CAFE.find(x => x.id === id);
+                  if (!c) return null;
+                  return <span key={id} style={{ fontSize: 11, fontWeight: 700, color: C.roast, background: C.fog, borderRadius: 8, padding: "3px 9px" }}>{c.icon} {c.nombre}</span>;
+                })}
+              </div>
+              {datos.criteriosVerificacion.length > 0 && (
+                <p style={{ fontSize: 12, color: C.bark, marginTop: 8 }}>
+                  Criterios de verificación cumplidos: {datos.criteriosVerificacion.length} de {CRITERIOS_VERIFICACION.length}
+                </p>
+              )}
+              {datos.notasCertificacion && <p style={{ fontSize: 12, color: C.bark, marginTop: 4, lineHeight: 1.5 }}>{datos.notasCertificacion}</p>}
+            </div>
+          )}
+
+          {datos.practicasSostenibles.length > 0 && (
+            <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 24 }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>🌱 Producción sostenible</h3>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {datos.practicasSostenibles.map(id => {
+                  const p = PRACTICAS_SOSTENIBLES.find(x => x.id === id);
+                  if (!p) return null;
+                  return <span key={id} style={{ fontSize: 11, fontWeight: 700, color: C.leaf, background: C.fog, borderRadius: 8, padding: "3px 9px" }}>{p.icon} {p.nombre}</span>;
+                })}
+              </div>
+              {datos.notasSostenibilidad && <p style={{ fontSize: 12, color: C.bark, marginTop: 8, lineHeight: 1.5 }}>{datos.notasSostenibilidad}</p>}
             </div>
           )}
 

@@ -971,7 +971,7 @@ async function cambiarPassword(code) {
 }
 
 // ── APP ───────────────────────────────────────────────────────────────────────
-const SECCIONES = ["Finca", "Clima", "Cosecha", "Plagas", "Beneficio", "Secado", "Defectos café", "Rendimiento", "Calibre", "Suelo", "Certificación", "Sostenibilidad", "Diagnóstico"];
+const SECCIONES = ["Finca", "Clima", "Suelo", "Cosecha", "Plagas", "Beneficio", "Secado", "Defectos café", "Rendimiento", "Calibre", "Certificación", "Sostenibilidad", "Diagnóstico"];
 const ESTADO = {
   nombre: "", vereda: "", altitud: "", variedad: "", hectareas: "",
   pctRojos: "", puntajeSCA: "", fermentacion: "", relacionCereza: "",
@@ -1094,10 +1094,10 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           <div style={{ height: 5, borderRadius: 4, background: C.clay, width: `${progreso}%`, transition: "width 0.4s ease" }} />
         </div>
         {/* Pasos clickables */}
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 2, whiteSpace: "nowrap" }}>
           {SECCIONES.map((s, i) => (
             <span key={s} onClick={() => i < paso && setPaso(i)}
-              style={{ fontSize: 9, fontWeight: i === paso ? 900 : 400,
+              style={{ flexShrink: 0, fontSize: 9, fontWeight: i === paso ? 900 : 400,
                 color: i === paso ? C.cream : i < paso ? C.clay : "#6B4030",
                 cursor: i < paso ? "pointer" : "default", letterSpacing: 0.3 }}>{s}</span>
           ))}
@@ -1157,9 +1157,34 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           )}
         </>}
 
-        {/* ── PASO 2: COSECHA ── */}
+        {/* ── PASO 2: SUELO ── */}
         {paso === 2 && <>
-          <SeccionHeader numero="3" titulo="Cosecha" subtitulo="La madurez del fruto es la palanca de mayor impacto sobre calidad y merma" />
+          <SeccionHeader numero="3" titulo="Suelo" subtitulo="El tipo de suelo, el pH y la sombra influyen en la nutrición y sanidad del cafetal" />
+          <SelectorBotones label="Tipo de suelo" name="tipoSuelo" value={datos.tipoSuelo} onChange={set}
+            opciones={opcTipoSuelo}
+            ayuda="Si tienes un análisis de suelo reciente, usa ese dato. Si no, una estimación a ojo/tacto sirve." />
+          <Campo label="pH del suelo (si lo conoces)" name="ph" value={datos.ph} onChange={set}
+            inputMode="decimal" placeholder="Ej. 5.2" min={3.5} max={8} step="0.1"
+            ayuda="Dato de análisis de suelo del ICA, Cenicafé o tu cooperativa. El café prefiere suelos ligeramente ácidos (5,0-5,5)." />
+          <SelectorBotones label="Humedad del suelo (situación habitual)" name="humedadSuelo" value={datos.humedadSuelo} onChange={set} opciones={opcHumedadSuelo} />
+
+          <h3 style={{ fontSize: 15, fontWeight: 900, color: C.earth, marginTop: 24, marginBottom: 4 }}>🌳 Sombra</h3>
+          <SelectorBotones label="% de sombra sobre el cafetal" name="pctSombra" value={datos.pctSombra} onChange={set}
+            opciones={opcSombra}
+            ayuda="Estima qué porcentaje del cafetal queda cubierto por árboles de sombra al mediodía. La sombra regula la cantidad de luz que recibe la planta." />
+          <Campo label="Especies de sombra (opcional)" name="especiesSombra" value={datos.especiesSombra} onChange={set}
+            tipo="text" inputMode="text" placeholder="Ej. Guamo, Nogal, Cedro" />
+
+          {datos.ph && (
+            <div style={{ background: C.fog, borderRadius: 12, padding: 14, marginTop: 16 }}>
+              <IndicadorBar label="pH del suelo" valor={datos.ph} campo="ph" />
+            </div>
+          )}
+        </>}
+
+        {/* ── PASO 3: COSECHA ── */}
+        {paso === 3 && <>
+          <SeccionHeader numero="4" titulo="Cosecha" subtitulo="La madurez del fruto es la palanca de mayor impacto sobre calidad y merma" />
           <TipBox titulo="¿Cómo saber tu % de frutos rojos?" texto="Coge 100 cerezas al azar de diferentes plantas. Cuenta cuántas están completamente rojas (color cereza uniforme). Ese número es tu porcentaje." />
           <SelectorBotones label="% de frutos rojos en tu cosecha" name="pctRojos" value={datos.pctRojos} onChange={set}
             opciones={opcRojos}
@@ -1173,9 +1198,9 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           </div>
         </>}
 
-        {/* ── PASO 3: PLAGAS Y ENFERMEDADES ── */}
-        {paso === 3 && <>
-          <SeccionHeader numero="4" titulo="Plagas y enfermedades" subtitulo="Marca lo que has observado en esta cosecha. Toca cada tarjeta para ver síntomas, umbral de acción y control recomendado (Cenicafé/FNC)." />
+        {/* ── PASO 4: PLAGAS Y ENFERMEDADES ── */}
+        {paso === 4 && <>
+          <SeccionHeader numero="5" titulo="Plagas y enfermedades" subtitulo="Marca lo que has observado en esta cosecha. Toca cada tarjeta para ver síntomas, umbral de acción y control recomendado (Cenicafé/FNC)." />
           <CatalogoPlagas seleccionadas={datos.plagasObservadas} onToggle={togglePlaga} />
           <div style={{ marginTop: 16 }}>
             <label style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.earth, marginBottom: 5 }}>Notas adicionales (opcional)</label>
@@ -1185,9 +1210,9 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           </div>
         </>}
 
-        {/* ── PASO 4: BENEFICIO ── */}
-        {paso === 4 && <>
-          <SeccionHeader numero="5" titulo="Beneficio húmedo" subtitulo="Fermentación y despulpado definen si el café tendrá defectos en taza" />
+        {/* ── PASO 5: BENEFICIO ── */}
+        {paso === 5 && <>
+          <SeccionHeader numero="6" titulo="Beneficio húmedo" subtitulo="Fermentación y despulpado definen si el café tendrá defectos en taza" />
           <SelectorBotones label="Tiempo de fermentación" name="fermentacion" value={datos.fermentacion} onChange={set}
             opciones={opcFerm}
             ayuda="¿Cuántas horas deja fermentando el café baboso antes de lavarlo?" />
@@ -1200,9 +1225,9 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           </div>
         </>}
 
-        {/* ── PASO 5: SECADO ── */}
-        {paso === 5 && <>
-          <SeccionHeader numero="6" titulo="Secado y almacenamiento" subtitulo="La humedad final determina pérdida de peso y riesgo de hongos" />
+        {/* ── PASO 6: SECADO ── */}
+        {paso === 6 && <>
+          <SeccionHeader numero="7" titulo="Secado y almacenamiento" subtitulo="La humedad final determina pérdida de peso y riesgo de hongos" />
           <TipBox titulo="¿No tienes medidor de humedad?" texto="El pergamino entre 10-12% de humedad suena 'crujiente' y duro al apretarlo entre los dedos. Si se siente blando o flexible, aún está húmedo." />
           <SelectorBotones label="Humedad del pergamino seco (%)" name="humedadPergamino" value={datos.humedadPergamino} onChange={set}
             opciones={opcHumPerg}
@@ -1216,9 +1241,9 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           </div>
         </>}
 
-        {/* ── PASO 6: DEFECTOS CAFÉ ── */}
-        {paso === 6 && <>
-          <SeccionHeader numero="7" titulo="Defectos café" subtitulo="Identifica los defectos físicos del grano en tu muestra de trilla" />
+        {/* ── PASO 7: DEFECTOS CAFÉ ── */}
+        {paso === 7 && <>
+          <SeccionHeader numero="8" titulo="Defectos café" subtitulo="Identifica los defectos físicos del grano en tu muestra de trilla" />
           <p style={{ fontSize: 12, color: C.bark, marginBottom: 10, lineHeight: 1.55 }}>
             El catador profesional distingue cerca de 20 categorías de defectos físicos. Aquí se agrupan en las
             8 más frecuentes para que puedas identificarlas a simple vista en tu muestra de trilla. No necesitas
@@ -1233,9 +1258,9 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           <CatalogoDefectos seleccionados={datos.defectosObservados} onToggle={toggleDefecto} />
         </>}
 
-        {/* ── PASO 7: RENDIMIENTO ── */}
-        {paso === 7 && <>
-          <SeccionHeader numero="8" titulo="Rendimiento" subtitulo="El factor de rendimiento revela la calidad acumulada de todo el proceso, desde la cosecha hasta la trilla" />
+        {/* ── PASO 8: RENDIMIENTO ── */}
+        {paso === 8 && <>
+          <SeccionHeader numero="9" titulo="Rendimiento" subtitulo="El factor de rendimiento revela la calidad acumulada de todo el proceso, desde la cosecha hasta la trilla" />
           <SelectorBotones label="¿Cómo vas a calcular el factor de rendimiento?" name="metodoTrilla" value={datos.metodoTrilla} onChange={set}
             opciones={opcMetodoTrilla} />
 
@@ -1273,37 +1298,12 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           </>}
         </>}
 
-        {/* ── PASO 8: CALIBRE ── */}
-        {paso === 8 && <>
-          <SeccionHeader numero="9" titulo="Calibre" subtitulo="El tamaño del grano, cribado por malla, determina si tu café puede venderse como especial" />
+        {/* ── PASO 9: CALIBRE ── */}
+        {paso === 9 && <>
+          <SeccionHeader numero="10" titulo="Calibre" subtitulo="El tamaño del grano, cribado por malla, determina si tu café puede venderse como especial" />
           <SelectorBotones label="Calibre / tamaño del grano (cribado por malla)" name="calibreGrano" value={datos.calibreGrano} onChange={set}
             opciones={opcCalibre}
             ayuda="Si tienes zarandas de clasificación, pasa el café excelso por malla 14: lo que se cuela (pasa) es de calibre bajo y no se considera café especial." />
-        </>}
-
-        {/* ── PASO 9: SUELO ── */}
-        {paso === 9 && <>
-          <SeccionHeader numero="10" titulo="Suelo" subtitulo="El tipo de suelo, el pH y la sombra influyen en la nutrición y sanidad del cafetal" />
-          <SelectorBotones label="Tipo de suelo" name="tipoSuelo" value={datos.tipoSuelo} onChange={set}
-            opciones={opcTipoSuelo}
-            ayuda="Si tienes un análisis de suelo reciente, usa ese dato. Si no, una estimación a ojo/tacto sirve." />
-          <Campo label="pH del suelo (si lo conoces)" name="ph" value={datos.ph} onChange={set}
-            inputMode="decimal" placeholder="Ej. 5.2" min={3.5} max={8} step="0.1"
-            ayuda="Dato de análisis de suelo del ICA, Cenicafé o tu cooperativa. El café prefiere suelos ligeramente ácidos (5,0-5,5)." />
-          <SelectorBotones label="Humedad del suelo (situación habitual)" name="humedadSuelo" value={datos.humedadSuelo} onChange={set} opciones={opcHumedadSuelo} />
-
-          <h3 style={{ fontSize: 15, fontWeight: 900, color: C.earth, marginTop: 24, marginBottom: 4 }}>🌳 Sombra</h3>
-          <SelectorBotones label="% de sombra sobre el cafetal" name="pctSombra" value={datos.pctSombra} onChange={set}
-            opciones={opcSombra}
-            ayuda="Estima qué porcentaje del cafetal queda cubierto por árboles de sombra al mediodía. La sombra regula la cantidad de luz que recibe la planta." />
-          <Campo label="Especies de sombra (opcional)" name="especiesSombra" value={datos.especiesSombra} onChange={set}
-            tipo="text" inputMode="text" placeholder="Ej. Guamo, Nogal, Cedro" />
-
-          {datos.ph && (
-            <div style={{ background: C.fog, borderRadius: 12, padding: 14, marginTop: 16 }}>
-              <IndicadorBar label="pH del suelo" valor={datos.ph} campo="ph" />
-            </div>
-          )}
         </>}
 
         {/* ── PASO 10: CERTIFICACIÓN Y VERIFICACIÓN ── */}

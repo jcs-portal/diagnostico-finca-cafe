@@ -897,7 +897,7 @@ function ListaDiagnosticos({ code, diagnosticos, onNuevo, onAbrir, onBorrar, onB
 
 // ── LOGIN (mismo código de finanzas-cafeteros) ────────────────────────────────
 function Login({ onLogin }) {
-  const [codigo, setCodigo] = useState("");
+  const [codigo, setCodigo] = useState(() => new URLSearchParams(location.search).get("code")?.toUpperCase() || "");
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");

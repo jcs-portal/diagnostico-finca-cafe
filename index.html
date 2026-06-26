@@ -797,7 +797,7 @@ async function descargarWordDiagnostico(d, code) {
     new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Indicadores" }) ] }),
     ...INDICADORES_WORD.map(([campo, label]) => filaIndicador(label, campo)),
     new Paragraph({ text: "" }),
-    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Trilla — factor de rendimiento, calibre y defectos" }) ] }),
+    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [ new TextRun({ text: "Defectos del grano, rendimiento y calibre" }) ] }),
     new Paragraph({ children: [ new TextRun({ text: `Factor de rendimiento: ${factorRendTexto}  ·  Calibre: ${calibreTexto}`, size: 20, color: W.earth }) ] }),
     new Paragraph({ children: [ new TextRun({ text: defectosNombres.length > 0 ? `Defectos observados: ${defectosNombres.join(", ")}` : "Sin defectos marcados", size: 18, color: W.bark }) ] }),
     new Paragraph({ text: "" }),
@@ -1388,7 +1388,7 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
 
           {(datos.calibreGrano || datos.defectosObservados.length > 0) && (
             <div style={{ background: C.white, borderRadius: 14, padding: 16, marginBottom: 24 }}>
-              <h3 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>🔍 Trilla — calibre y defectos</h3>
+              <h3 style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 900, color: C.roast, textTransform: "uppercase", letterSpacing: 1 }}>🔍 Defectos del grano y calibre</h3>
               {datos.calibreGrano && (
                 <div style={{ fontSize: 13, color: C.roast, marginBottom: datos.defectosObservados.length > 0 ? 8 : 0 }}>
                   Calibre: {opcCalibre.find(o => o.valor === datos.calibreGrano)?.label || datos.calibreGrano}

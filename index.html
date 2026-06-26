@@ -59,29 +59,34 @@ const { useState, useCallback, useEffect, useRef } = React;
 // Mismo backend y mismos códigos que finanzas-cafeteros (Railway)
 const API_BASE = "https://doc-comite-finanzas-production.up.railway.app/api";
 
+// Contraseña opcional por código (asignada por el formador). Se envía en todas
+// las peticiones; si el código no tiene contraseña asignada, el backend la ignora.
+let currentPassword = localStorage.getItem("dfc_password") || "";
+function setCurrentPassword(p) { currentPassword = p || ""; localStorage.setItem("dfc_password", currentPassword); }
+
 async function apiGet(ruta, code) {
-  const r = await fetch(API_BASE + ruta, { headers: { "X-Code": code } });
+  const r = await fetch(API_BASE + ruta, { headers: { "X-Code": code, "X-Password": currentPassword } });
   if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Error de conexión");
   return r.json();
 }
 async function apiPut(ruta, code, body) {
   const r = await fetch(API_BASE + ruta, {
     method: "PUT",
-    headers: { "Content-Type": "application/json", "X-Code": code },
+    headers: { "Content-Type": "application/json", "X-Code": code, "X-Password": currentPassword },
     body: JSON.stringify(body)
   });
   if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Error de conexión");
   return r.json();
 }
 async function apiDelete(ruta, code) {
-  const r = await fetch(API_BASE + ruta, { method: "DELETE", headers: { "X-Code": code } });
+  const r = await fetch(API_BASE + ruta, { method: "DELETE", headers: { "X-Code": code, "X-Password": currentPassword } });
   if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Error de conexión");
   return r.json();
 }
 async function apiPost(ruta, code, body) {
   const r = await fetch(API_BASE + ruta, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Code": code },
+    headers: { "Content-Type": "application/json", "X-Code": code, "X-Password": currentPassword },
     body: JSON.stringify(body || {})
   });
   if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "Error de conexión");
@@ -622,7 +627,10 @@ function ListaDiagnosticos({ code, diagnosticos, onNuevo, onAbrir, onBorrar, onB
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 11, color: C.cream, fontWeight: 800, background: "#4A2A14", borderRadius: 6, padding: "3px 8px" }}>{code}</div>
-            <span onClick={onLogout} style={{ fontSize: 9, color: "#8B6B5A", textDecoration: "underline", cursor: "pointer" }}>Cambiar código</span>
+            <div style={{ display: "flex", gap: 6, marginTop: 3, justifyContent: "flex-end" }}>
+              <span onClick={() => cambiarPassword(code)} style={{ fontSize: 9, color: "#8B6B5A", textDecoration: "underline", cursor: "pointer" }}>🔑 Contraseña</span>
+              <span onClick={onLogout} style={{ fontSize: 9, color: "#8B6B5A", textDecoration: "underline", cursor: "pointer" }}>Cambiar código</span>
+            </div>
           </div>
         </div>
       </div>
@@ -667,6 +675,7 @@ function ListaDiagnosticos({ code, diagnosticos, onNuevo, onAbrir, onBorrar, onB
 // ── LOGIN (mismo código de finanzas-cafeteros) ────────────────────────────────
 function Login({ onLogin }) {
   const [codigo, setCodigo] = useState("");
+  const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
@@ -674,11 +683,13 @@ function Login({ onLogin }) {
     const c = codigo.trim().toUpperCase();
     if (!c) { setError("Escribe tu código"); return; }
     setCargando(true); setError("");
+    setCurrentPassword(password);
     try {
       const who = await apiGet("/whoami", c);
       onLogin(who.code);
     } catch (e) {
-      setError("Código no reconocido. Verifica con tu formador.");
+      setError(e.message === "Contraseña incorrecta" ? "⚠️ Contraseña incorrecta" : "Código no reconocido. Verifica con tu formador.");
+      setCurrentPassword("");
     } finally { setCargando(false); }
   };
 
@@ -700,6 +711,18 @@ function Login({ onLogin }) {
           borderRadius: 10, fontSize: 18, textAlign: "center", textTransform: "uppercase",
           background: C.white, color: C.earth, outline: "none", marginBottom: 10 }}
       />
+      <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.bark, marginBottom: 6, alignSelf: "flex-start" }}>
+        Contraseña (si tu formador te asignó una)
+      </label>
+      <input
+        type="password" value={password}
+        onChange={e => { setPassword(e.target.value); setError(""); }}
+        onKeyDown={e => e.key === "Enter" && entrar()}
+        placeholder="Déjalo vacío si no tienes"
+        style={{ width: "100%", padding: "13px 16px", border: `2px solid ${C.clay}`,
+          borderRadius: 10, fontSize: 16, textAlign: "center",
+          background: C.white, color: C.earth, outline: "none", marginBottom: 10 }}
+      />
       {error && <p style={{ color: C.alert, fontSize: 13, marginBottom: 10 }}>{error}</p>}
       <button onClick={entrar} disabled={cargando} style={{
         width: "100%", borderRadius: 12, border: "none", padding: "14px 0",
@@ -708,6 +731,20 @@ function Login({ onLogin }) {
       }}>{cargando ? "Verificando…" : "Entrar →"}</button>
     </div>
   );
+}
+
+async function cambiarPassword(code) {
+  const actual = window.prompt("Tu contraseña actual (déjalo vacío si nunca has puesto una):") || "";
+  const nueva = window.prompt("Nueva contraseña:");
+  if (!nueva || !nueva.trim()) return;
+  try {
+    setCurrentPassword(actual);
+    await apiPut("/password", code, { passwordActual: actual, passwordNueva: nueva.trim() });
+    setCurrentPassword(nueva.trim());
+    alert("✅ Contraseña actualizada");
+  } catch (e) {
+    alert("⚠️ " + e.message);
+  }
 }
 
 // ── APP ───────────────────────────────────────────────────────────────────────
@@ -1109,12 +1146,14 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
 function Contenedor({ code, onLogout }) {
   const [diagnosticos, setDiagnosticos] = useState([]);
   const [cargado, setCargado] = useState(false);
+  const [error, setError] = useState("");
   const [idActivo, setIdActivo] = useState(null);
 
   const cargar = useCallback(() => {
+    setError("");
     apiGet("/diagnostico", code)
       .then(d => setDiagnosticos(d?.diagnosticos || []))
-      .catch(() => setDiagnosticos([]))
+      .catch(e => setError(e.message || "No se pudo conectar con el servidor"))
       .finally(() => setCargado(true));
   }, [code]);
 
@@ -1147,6 +1186,24 @@ function Contenedor({ code, onLogout }) {
     return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.bark }}>Cargando…</div>;
   }
 
+  if (error) {
+    return (
+      <div style={{ minHeight: "100vh", background: C.cream, maxWidth: 480, margin: "0 auto",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+        <p style={{ fontSize: 14, color: C.roast, lineHeight: 1.6, marginBottom: 8 }}>{error}</p>
+        {error === "Contraseña incorrecta" && (
+          <p style={{ fontSize: 12, color: C.bark, marginBottom: 20 }}>Tu contraseña pudo cambiar. Vuelve a entrar con la actual.</p>
+        )}
+        <button onClick={cargar} style={{
+          borderRadius: 12, border: "none", padding: "12px 24px", marginBottom: 12,
+          background: C.roast, color: C.cream, fontSize: 14, fontWeight: 900, cursor: "pointer",
+        }}>Reintentar</button>
+        <span onClick={onLogout} style={{ fontSize: 12, color: C.bark, textDecoration: "underline", cursor: "pointer" }}>Cambiar código</span>
+      </div>
+    );
+  }
+
   if (idActivo) {
     const entrada = diagnosticos.find(d => d.id === idActivo);
     if (!entrada) { setIdActivo(null); return null; }
@@ -1162,7 +1219,7 @@ function App() {
   const [code, setCode] = useState(() => localStorage.getItem("dfc_code") || "");
 
   const onLogin = (c) => { localStorage.setItem("dfc_code", c); setCode(c); };
-  const onLogout = () => { localStorage.removeItem("dfc_code"); setCode(""); };
+  const onLogout = () => { localStorage.removeItem("dfc_code"); localStorage.removeItem("dfc_password"); setCurrentPassword(""); setCode(""); };
 
   return code ? <Contenedor code={code} onLogout={onLogout} /> : <Login onLogin={onLogin} />;
 }

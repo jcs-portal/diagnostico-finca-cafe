@@ -988,8 +988,18 @@ const ESTADO = {
 
 function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
   const [paso, setPaso] = useState(0);
-  const [datos, setDatos] = useState({ ...ESTADO, ...entrada });
+  // Si la sesión anterior se interrumpió antes de confirmar el guardado en el
+  // servidor, hay un respaldo local (ver autoguardado más abajo) — se recupera aquí.
+  const [datos, setDatos] = useState(() => {
+    const base = { ...ESTADO, ...entrada };
+    try {
+      const draft = localStorage.getItem(`dfc_draft_${entrada.id}`);
+      if (draft) return { ...base, ...JSON.parse(draft) };
+    } catch {}
+    return base;
+  });
   const [guardando, setGuardando] = useState(false);
+  const [errorGuardado, setErrorGuardado] = useState(false);
   const set = useCallback((name, val) => setDatos(d => ({ ...d, [name]: val })), []);
   const togglePlaga = useCallback((id) => setDatos(d => ({
     ...d, plagasObservadas: d.plagasObservadas.includes(id) ? d.plagasObservadas.filter(x => x !== id) : [...d.plagasObservadas, id],
@@ -1054,16 +1064,40 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
     return () => clearTimeout(fincaSyncTimer.current);
   }, [datos.nombre, datos.vereda, datos.altitud, datos.variedad, datos.hectareas, code]);
 
-  // Autoguardado: cada cambio de dato se sincroniza con este diagnóstico concreto
+  // Autoguardado: cada cambio de dato se sincroniza con este diagnóstico concreto.
+  // El respaldo local se escribe de inmediato (no con el debounce de 700ms) para
+  // que sobreviva aunque la pestaña se cierre antes de que el PUT salga o responda.
   const saveTimer = useRef(null);
   useEffect(() => {
+    try { localStorage.setItem(`dfc_draft_${entrada.id}`, JSON.stringify(datos)); } catch {}
     setGuardando(true);
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      apiPut(`/diagnostico/${entrada.id}`, code, datos).catch(() => {}).finally(() => setGuardando(false));
+      apiPut(`/diagnostico/${entrada.id}`, code, datos)
+        .then(() => {
+          setErrorGuardado(false);
+          try { localStorage.removeItem(`dfc_draft_${entrada.id}`); } catch {}
+        })
+        .catch(() => setErrorGuardado(true))
+        .finally(() => setGuardando(false));
     }, 700);
     return () => clearTimeout(saveTimer.current);
   }, [datos, code, entrada.id]);
+
+  // Si el guardado falló (sin conexión), reintenta automáticamente al recuperar la red.
+  useEffect(() => {
+    if (!errorGuardado) return;
+    const reintentar = () => {
+      apiPut(`/diagnostico/${entrada.id}`, code, datos)
+        .then(() => {
+          setErrorGuardado(false);
+          try { localStorage.removeItem(`dfc_draft_${entrada.id}`); } catch {}
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("online", reintentar);
+    return () => window.removeEventListener("online", reintentar);
+  }, [errorGuardado, datos, code, entrada.id]);
   const recs = generarRecomendaciones(datos);
   const prioridadColor = p => p === 1 ? C.alert : p === 2 ? C.warn : C.ok;
   const prioridadLabel = p => p === 1 ? "🔴 Prioridad alta" : p === 2 ? "🟡 Prioridad media" : "🟢 Mantener";
@@ -1120,7 +1154,9 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 11, color: C.cream, fontWeight: 800, background: "#4A2A14", borderRadius: 6, padding: "3px 8px" }}>{code}</div>
-            <div style={{ fontSize: 9, color: C.clay, marginTop: 3 }}>{guardando ? "Guardando…" : "✓ Guardado"}</div>
+            <div style={{ fontSize: 9, color: errorGuardado ? "#FFB199" : C.clay, marginTop: 3, fontWeight: errorGuardado ? 800 : 400 }}>
+              {guardando ? "Guardando…" : errorGuardado ? "⚠ Sin conexión — guardado solo en este dispositivo" : "✓ Guardado"}
+            </div>
             <span onClick={onVolver} style={{ fontSize: 9, color: "#8B6B5A", textDecoration: "underline", cursor: "pointer" }}>← Mis diagnósticos</span>
           </div>
         </div>

@@ -1019,6 +1019,41 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
   const [bm, setBm] = useState(null);
   useEffect(() => { apiGet("/benchmark", code).then(setBm).catch(() => {}); }, [code]);
 
+  // Ficha de Productor compartida (Finanzas/Comercialización/Plan de Mejora): si este
+  // diagnóstico es nuevo y no trae nombre/vereda/altitud/variedad/hectareas, se
+  // precargan desde la ficha para no volver a pedirlos. Los cambios que el caficultor
+  // haga aquí se sincronizan de vuelta a la ficha (ver efecto más abajo).
+  useEffect(() => {
+    const vacios = !entrada.nombre && !entrada.vereda && !entrada.altitud && !entrada.variedad && !entrada.hectareas;
+    if (!vacios) return;
+    apiGet("/finca", code).then(f => {
+      if (!f || Object.keys(f).length === 0) return;
+      setDatos(d => ({
+        ...d,
+        nombre: d.nombre || f.nombreFinca || "",
+        vereda: d.vereda || f.vereda || "",
+        altitud: d.altitud || (f.altitud != null && f.altitud !== "" ? String(f.altitud) : ""),
+        variedad: d.variedad || f.variedad || "",
+        hectareas: d.hectareas || (f.hectareasCafe != null && f.hectareasCafe !== "" ? String(f.hectareasCafe) : ""),
+      }));
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fincaSyncTimer = useRef(null);
+  useEffect(() => {
+    const algunoLleno = datos.nombre || datos.vereda || datos.altitud || datos.variedad || datos.hectareas;
+    if (!algunoLleno) return;
+    clearTimeout(fincaSyncTimer.current);
+    fincaSyncTimer.current = setTimeout(() => {
+      apiPut("/finca", code, {
+        nombreFinca: datos.nombre, vereda: datos.vereda,
+        altitud: datos.altitud, variedad: datos.variedad, hectareasCafe: datos.hectareas,
+      }).catch(() => {});
+    }, 900);
+    return () => clearTimeout(fincaSyncTimer.current);
+  }, [datos.nombre, datos.vereda, datos.altitud, datos.variedad, datos.hectareas, code]);
+
   // Autoguardado: cada cambio de dato se sincroniza con este diagnóstico concreto
   const saveTimer = useRef(null);
   useEffect(() => {
@@ -1109,7 +1144,7 @@ function DiagnosticoWizard({ code, entrada, onVolver, onLogout }) {
 
         {/* ── PASO 0: FINCA ── */}
         {paso === 0 && <>
-          <SeccionHeader numero="1" titulo="Tu finca" subtitulo="Datos básicos para contextualizar tu diagnóstico" />
+          <SeccionHeader numero="1" titulo="Tu finca" subtitulo="Datos básicos para contextualizar tu diagnóstico — son los mismos que ves en Finanzas y Comercialización; si ya los completaste ahí, aquí aparecen solos." />
           <Campo label="Nombre de la finca" name="nombre" value={datos.nombre} onChange={set}
             tipo="text" inputMode="text" placeholder="Ej. Finca El Porvenir" />
           <Campo label="Vereda" name="vereda" value={datos.vereda} onChange={set}

@@ -909,7 +909,7 @@ function Login({ onLogin }) {
     setCurrentPassword(password);
     try {
       const who = await apiGet("/whoami", c);
-      onLogin(who.code);
+      onLogin(who);
     } catch (e) {
       setError(e.message === "Contraseña incorrecta" ? "⚠️ Contraseña incorrecta" : "Código no reconocido. Verifica con tu formador.");
       setCurrentPassword("");
@@ -1730,14 +1730,182 @@ function Contenedor({ code, onLogout }) {
     onNuevo={nuevoDiagnostico} onAbrir={abrir} onBorrar={borrar} onBorrarTodos={borrarTodos} onLogout={onLogout} />;
 }
 
+// ── PANEL DEL FORMADOR ────────────────────────────────────────────────────────
+function PanelFormador({ code, onLogout }) {
+  const [datos, setDatos] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+  const [codigoActivo, setCodigoActivo] = useState(null);
+  const [diagActivo, setDiagActivo] = useState(null);
+
+  const cargar = useCallback(() => {
+    setCargando(true); setError("");
+    apiGet("/admin/diagnostico", code)
+      .then(d => { setDatos(d); setCargando(false); })
+      .catch(e => { setError(e.message); setCargando(false); });
+  }, [code]);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const borrarTodosDelCodigo = async (cod) => {
+    if (!confirm(`¿Borrar TODOS los diagnósticos de ${cod}? Esta acción no se puede deshacer.`)) return;
+    try {
+      await apiDelete(`/admin/diagnostico/${cod}`, code);
+      setDatos(prev => prev.map(r => r.codigo === cod ? { ...r, diagnosticos: [] } : r));
+      setCodigoActivo(null); setDiagActivo(null);
+    } catch (e) { alert("Error: " + e.message); }
+  };
+
+  const cabecera = (titulo, onVolver) => (
+    <div className="header-safe" style={{ background: C.earth, padding: "14px 20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {onVolver && (
+          <button onClick={onVolver} style={{ background: "none", border: "none", color: C.cream, fontSize: 22, cursor: "pointer", padding: 0 }}>←</button>
+        )}
+        <div>
+          <div style={{ fontSize: 10, color: C.clay, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>Panel del Formador · Diagnósticos</div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: C.cream }}>{titulo}</div>
+        </div>
+        <div style={{ marginLeft: "auto" }}>
+          <button onClick={onLogout} style={{ background: "none", border: `1.5px solid ${C.clay}`, borderRadius: 8, color: C.cream, fontSize: 12, padding: "4px 10px", cursor: "pointer" }}>Salir</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (cargando) return <div style={{ minHeight: "100vh", background: C.cream, display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ color: C.bark }}>Cargando diagnósticos…</span></div>;
+  if (error) return <div style={{ minHeight: "100vh", background: C.cream, padding: 24 }}>{cabecera("Error")}<p style={{ color: C.alert, padding: 20 }}>{error}</p></div>;
+
+  // ── Vista: resumen de un diagnóstico concreto ──
+  if (codigoActivo && diagActivo) {
+    const recs = generarRecomendaciones(diagActivo.datos || {});
+    const d = diagActivo.datos || {};
+    return (
+      <div style={{ minHeight: "100vh", background: C.cream, maxWidth: 480, margin: "0 auto" }}>
+        {cabecera(`${codigoActivo} · Diagnóstico #${diagActivo.numero}`, () => setDiagActivo(null))}
+        <div style={{ padding: "16px 20px" }}>
+          <div style={{ background: C.white, borderRadius: 12, padding: 14, marginBottom: 14, fontSize: 13, color: C.roast }}>
+            <b>Fecha:</b> {diagActivo.fecha || "—"} &nbsp;·&nbsp; <b>Finca:</b> {d.nombre || "—"} &nbsp;·&nbsp; <b>Vereda:</b> {d.vereda || "—"}
+          </div>
+          {recs.length === 0 ? (
+            <p style={{ color: C.bark, fontSize: 13 }}>No hay recomendaciones generadas (datos incompletos).</p>
+          ) : (
+            recs.map((r, i) => (
+              <div key={i} style={{ background: C.white, borderRadius: 12, padding: 14, marginBottom: 10, borderLeft: `4px solid ${r.prioridad === 1 ? C.alert : r.prioridad === 2 ? C.warn : C.ok}` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: r.prioridad === 1 ? C.alert : r.prioridad === 2 ? C.warn : C.ok, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+                  {r.prioridad === 1 ? "🔴 Alta" : r.prioridad === 2 ? "🟡 Media" : "🟢 Mantener"} · {r.area}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: C.earth, marginBottom: 4 }}>{r.titulo}</div>
+                <div style={{ fontSize: 13, color: C.roast, lineHeight: 1.5 }}>{r.texto}</div>
+              </div>
+            ))
+          )}
+          <button onClick={() => descargarWordDiagnostico(diagActivo, codigoActivo)} style={{ width: "100%", marginTop: 8, background: C.earth, color: C.cream, border: "none", borderRadius: 12, padding: "13px 0", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+            📄 Descargar diagnóstico en Word
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Vista: diagnósticos de un caficultor ──
+  if (codigoActivo) {
+    const fila = datos.find(r => r.codigo === codigoActivo);
+    const diags = (fila?.diagnosticos || []).sort((a, b) => (b.numero || 0) - (a.numero || 0));
+    return (
+      <div style={{ minHeight: "100vh", background: C.cream, maxWidth: 480, margin: "0 auto" }}>
+        {cabecera(codigoActivo, () => setCodigoActivo(null))}
+        <div style={{ padding: "16px 20px" }}>
+          {diags.length === 0 ? (
+            <p style={{ color: C.bark, fontSize: 13 }}>Este caficultor aún no tiene diagnósticos.</p>
+          ) : (
+            diags.map(d => (
+              <div key={d.id} style={{ background: C.white, borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontWeight: 700, color: C.earth }}>Diagnóstico #{d.numero}</span>
+                  <span style={{ fontSize: 12, color: C.bark }}>{d.fecha || "Sin fecha"}</span>
+                </div>
+                {d.datos?.nombre && <div style={{ fontSize: 13, color: C.roast, marginBottom: 8 }}>Finca: {d.datos.nombre} · Vereda: {d.datos.vereda || "—"}</div>}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setDiagActivo(d)} style={{ flex: 1, background: C.leaf, color: C.cream, border: "none", borderRadius: 8, padding: "9px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                    👁 Ver recomendaciones
+                  </button>
+                  <button onClick={() => descargarWordDiagnostico(d, codigoActivo)} style={{ flex: 1, background: C.earth, color: C.cream, border: "none", borderRadius: 8, padding: "9px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                    📄 Word
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+          {diags.length > 0 && (
+            <button onClick={() => borrarTodosDelCodigo(codigoActivo)} style={{ width: "100%", marginTop: 8, background: "none", border: `1.5px solid ${C.alert}`, borderRadius: 10, color: C.alert, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              🗑 Borrar todos los diagnósticos de {codigoActivo}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Vista principal: lista de caficultores ──
+  const conDiags = (datos || []).filter(r => r.diagnosticos?.length > 0);
+  const sinDiags = (datos || []).filter(r => !r.diagnosticos?.length);
+  return (
+    <div style={{ minHeight: "100vh", background: C.cream, maxWidth: 480, margin: "0 auto" }}>
+      {cabecera("Todos los diagnósticos")}
+      <div style={{ padding: "16px 20px" }}>
+        {conDiags.length === 0 && (
+          <p style={{ color: C.bark, fontSize: 13 }}>Ningún caficultor ha completado un diagnóstico todavía.</p>
+        )}
+        {conDiags.map(r => (
+          <button key={r.codigo} onClick={() => setCodigoActivo(r.codigo)} style={{ display: "flex", width: "100%", background: C.white, border: "none", borderRadius: 12, padding: 14, marginBottom: 10, cursor: "pointer", alignItems: "center", gap: 12, textAlign: "left" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 10, background: C.leaf, display: "flex", alignItems: "center", justifyContent: "center", color: C.cream, fontWeight: 900, fontSize: 14, flexShrink: 0 }}>{r.codigo.replace("SA-", "")}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, color: C.earth, fontSize: 15 }}>{r.codigo}</div>
+              <div style={{ fontSize: 12, color: C.bark }}>{r.diagnosticos.length} diagnóstico{r.diagnosticos.length !== 1 ? "s" : ""} · Último: {r.diagnosticos.slice().sort((a, b) => (b.numero || 0) - (a.numero || 0))[0]?.fecha || "—"}</div>
+            </div>
+            <span style={{ color: C.bark, fontSize: 18 }}>›</span>
+          </button>
+        ))}
+        {sinDiags.length > 0 && (
+          <details style={{ marginTop: 12 }}>
+            <summary style={{ fontSize: 13, color: C.bark, cursor: "pointer", marginBottom: 8 }}>Sin diagnósticos ({sinDiags.length})</summary>
+            {sinDiags.map(r => (
+              <div key={r.codigo} style={{ background: C.fog, borderRadius: 10, padding: "10px 14px", marginBottom: 6, color: C.bark, fontSize: 13 }}>{r.codigo}</div>
+            ))}
+          </details>
+        )}
+        <button onClick={cargar} style={{ width: "100%", marginTop: 16, background: "none", border: `1.5px solid ${C.leaf}`, borderRadius: 10, color: C.leaf, padding: "10px 0", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          🔄 Actualizar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── APP raíz: gestiona el código guardado en este dispositivo ────────────────
 function App() {
   const [code, setCode] = useState(() => localStorage.getItem("dfc_code") || "");
+  const [role, setRole] = useState(() => localStorage.getItem("dfc_role") || "");
 
-  const onLogin = (c) => { localStorage.setItem("dfc_code", c); setCode(c); };
-  const onLogout = () => { localStorage.removeItem("dfc_code"); localStorage.removeItem("dfc_password"); setCurrentPassword(""); setCode(""); };
+  const onLogin = (who) => {
+    localStorage.setItem("dfc_code", who.code);
+    localStorage.setItem("dfc_role", who.role || "");
+    setCode(who.code);
+    setRole(who.role || "");
+  };
+  const onLogout = () => {
+    localStorage.removeItem("dfc_code");
+    localStorage.removeItem("dfc_password");
+    localStorage.removeItem("dfc_role");
+    setCurrentPassword("");
+    setCode("");
+    setRole("");
+  };
 
-  return code ? <Contenedor code={code} onLogout={onLogout} /> : <Login onLogin={onLogin} />;
+  if (!code) return <Login onLogin={onLogin} />;
+  if (role === "formador") return <PanelFormador code={code} onLogout={onLogout} />;
+  return <Contenedor code={code} onLogout={onLogout} />;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
